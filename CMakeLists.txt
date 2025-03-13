@@ -7,6 +7,14 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
 include_directories(${SOURCE_DIR})
 
+include(FetchContent)
+FetchContent_Declare(
+        json
+        GIT_REPOSITORY https://github.com/nlohmann/json.git
+        GIT_TAG v3.11.2
+)
+FetchContent_MakeAvailable(json)
+
 file(GLOB_RECURSE UTILS_SOURCES
         "${SOURCE_DIR}/utils/*.cpp"
 )
@@ -35,6 +43,8 @@ add_library(stock_market_utils
         ${SERVICES_SOURCES}
 )
 
+target_link_libraries(stock_market_utils PRIVATE nlohmann_json::nlohmann_json)
+
 include(FetchContent)
 FetchContent_Declare(
         googletest
@@ -51,8 +61,10 @@ file(GLOB_RECURSE TEST_SOURCES
 enable_testing()
 include(GoogleTest)
 
-add_executable(utils_tests ${TEST_SOURCES}
-        tests/utils/ConsoleTest.cpp
+add_executable(utils_tests
+        #tests/utils/RandomTest.cpp
+        #tests/utils/ConsoleTest.cpp
+        tests/utils/FileIOTest.cpp
 )
 
 target_link_libraries(utils_tests
@@ -60,6 +72,7 @@ target_link_libraries(utils_tests
         stock_market_utils
         gtest
         gtest_main
+        nlohmann_json::nlohmann_json
 )
 
 gtest_discover_tests(utils_tests)
