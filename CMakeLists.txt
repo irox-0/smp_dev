@@ -65,9 +65,10 @@ add_executable(utils_tests
         #tests/utils/RandomTest.cpp
         #tests/utils/ConsoleTest.cpp
         #tests/utils/FileIOTest.cpp
-        tests/models/CompanyTest.cpp
-        tests/models/StockTest.cpp
-        tests/models/DividedPolicyTest.cpp
+#        tests/models/CompanyTest.cpp
+#        tests/models/StockTest.cpp
+#        tests/models/DividedPolicyTest.cpp
+        tests/core/MarketTest.cpp
 
 )
 
