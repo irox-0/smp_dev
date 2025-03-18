@@ -19,11 +19,10 @@ Market::Market()
     state.dailyChangePercent = 0.0;
     state.currentTrend = MarketTrend::Sideways;
     state.trendDuration = 0;
-    state.interestRate = 0.05;   // 5%
-    state.inflationRate = 0.02;  // 2%
-    state.unemploymentRate = 0.045; // 4.5%
+    state.interestRate = 0.05;
+    state.inflationRate = 0.02;
+    state.unemploymentRate = 0.045;
 
-    // Инициализация трендов секторов
     sectorTrends[Sector::Technology] = 0.0;
     sectorTrends[Sector::Energy] = 0.0;
     sectorTrends[Sector::Finance] = 0.0;
@@ -107,13 +106,12 @@ std::vector<std::shared_ptr<Company>> Market::getCompaniesBySector(Sector sector
 }
 
 void Market::addDefaultCompanies() {
-    // Технологический сектор
     auto techCorp = std::make_shared<Company>(
         "TechCorp", "TCH",
         "Ведущая технологическая компания, специализирующаяся на программном обеспечении и облачных сервисах",
         Sector::Technology,
-        85.75, 0.75, // Начальная цена, волатильность
-        DividendPolicy(1.6, 4) // Годовая ставка дивидендов, частота выплат (квартально)
+        85.75, 0.75,
+        DividendPolicy(1.6, 4)
     );
 
     auto innovaTech = std::make_shared<Company>(
@@ -121,10 +119,9 @@ void Market::addDefaultCompanies() {
         "Инновационная компания, разрабатывающая мобильные устройства и приложения",
         Sector::Technology,
         125.30, 0.85,
-        DividendPolicy(0.0, 0) // Не выплачивает дивиденды
+        DividendPolicy(0.0, 0)
     );
 
-    // Энергетический сектор
     auto energyPlus = std::make_shared<Company>(
         "EnergyPlus", "EPLC",
         "Энергетическая компания, специализирующаяся на возобновляемых источниках энергии",
@@ -141,7 +138,6 @@ void Market::addDefaultCompanies() {
         DividendPolicy(4.2, 4)
     );
 
-    // Финансовый сектор
     auto bankCo = std::make_shared<Company>(
         "BankCo", "BANK",
         "Крупный коммерческий банк с широким спектром финансовых услуг",
@@ -158,7 +154,6 @@ void Market::addDefaultCompanies() {
         DividendPolicy(2.5, 4)
     );
 
-    // Потребительский сектор
     auto retailGiant = std::make_shared<Company>(
         "RetailGiant", "RTGL",
         "Крупнейшая сеть розничных магазинов",
@@ -175,7 +170,6 @@ void Market::addDefaultCompanies() {
         DividendPolicy(1.8, 4)
     );
 
-    // Производственный сектор
     auto industrialCo = std::make_shared<Company>(
         "IndustrialCo", "INDL",
         "Промышленная компания, производящая оборудование и машины",
@@ -184,7 +178,6 @@ void Market::addDefaultCompanies() {
         DividendPolicy(2.8, 4)
     );
 
-    // Добавление компаний на рынок
     addCompany(techCorp);
     addCompany(innovaTech);
     addCompany(energyPlus);
@@ -197,38 +190,29 @@ void Market::addDefaultCompanies() {
 }
 
 void Market::simulateDay() {
-    // Закрытие предыдущего торгового дня
     for (auto& company : companies) {
         company->closeTradingDay();
     }
 
-    // Обновление рыночных факторов
     currentDay++;
     currentCycleDay = (currentCycleDay + 1) % cycleLength;
 
-    // Обновление тренда рынка при необходимости
     calculateMarketTrend();
 
-    // Обновление макроэкономических показателей
     updateMacroeconomicFactors();
 
-    // Генерация движения рынка
     double marketMovement = generateMarketMovement();
 
-    // Обновление индекса рынка
     double previousIndex = state.indexValue;
     state.indexValue *= (1.0 + marketMovement);
     state.dailyChange = state.indexValue - previousIndex;
     state.dailyChangePercent = (state.dailyChange / previousIndex) * 100.0;
 
-    // Обновление трендов секторов
     updateSectorTrends();
 
-    // Открытие нового торгового дня
     for (auto& company : companies) {
         company->openTradingDay();
 
-        // Обновление цен акций с учетом рыночного и секторального трендов
         Sector companySector = company->getSector();
         double sectorTrend = sectorTrends[companySector];
         company->updateStockPrice(marketMovement, sectorTrend);
@@ -238,7 +222,6 @@ void Market::simulateDay() {
 void Market::processCompanyDividends() {
     for (auto& company : companies) {
         if (company->processDividends(currentDay)) {
-            // Здесь можно было бы добавить логику уведомления о выплате дивидендов
         }
     }
 }
@@ -249,26 +232,22 @@ void Market::setMarketTrend(MarketTrend trend) {
 }
 
 void Market::triggerEconomicEvent(double impact, bool affectAllSectors) {
-    // Воздействие на индекс рынка
     state.indexValue *= (1.0 + impact);
 
-    // Воздействие на все секторы или случайный сектор
     if (affectAllSectors) {
         for (auto& sector : sectorTrends) {
             sector.second += impact;
         }
     } else {
-        // Выбор случайного сектора для воздействия
         std::vector<Sector> sectors = {
             Sector::Technology, Sector::Energy, Sector::Finance,
             Sector::Consumer, Sector::Manufacturing
         };
 
         Sector affectedSector = Random::getRandomElement(sectors);
-        sectorTrends[affectedSector] += impact * 2.0; // Удвоенное воздействие на конкретный сектор
+        sectorTrends[affectedSector] += impact * 2.0;
     }
 
-    // Обновление цен акций после события
     for (auto& company : companies) {
         Sector companySector = company->getSector();
         company->updateStockPrice(impact, sectorTrends[companySector]);
@@ -276,7 +255,6 @@ void Market::triggerEconomicEvent(double impact, bool affectAllSectors) {
 }
 
 void Market::updateMarketIndex() {
-    // Простой метод: индекс как среднее взвешенное цен акций
     if (companies.empty()) {
         return;
     }
@@ -286,17 +264,13 @@ void Market::updateMarketIndex() {
         totalMarketCap += company->getMarketCap();
     }
 
-    // Нормализация к базовому значению 1000
     state.indexValue = (totalMarketCap / companies.size()) / 10;
 }
 
 void Market::updateSectorTrends() {
-    // Генерация тренда для каждого сектора с учетом общего тренда рынка
     for (auto& [sector, trend] : sectorTrends) {
-        // Гарантируем, что тренд всегда меняется для прохождения тестов
         double newTrend = generateSectorMovement(sector);
 
-        // Если тренд не изменился, добавляем небольшую случайную величину
         if (newTrend == trend) {
             newTrend += Random::getDouble(-0.01, 0.01);
         }
@@ -306,14 +280,11 @@ void Market::updateSectorTrends() {
 }
 
 void Market::calculateMarketTrend() {
-    // Вероятность смены тренда зависит от его длительности
-    // Чем дольше держится тренд, тем выше вероятность его смены
     state.trendDuration++;
 
     double changeProbability = std::min(0.05 + (state.trendDuration / 100.0), 0.3);
 
     if (Random::getBool(changeProbability)) {
-        // Определение нового тренда
         double rand = Random::getDouble(0.0, 1.0);
 
         if (rand < 0.35) {
@@ -331,30 +302,23 @@ void Market::calculateMarketTrend() {
 }
 
 void Market::updateMacroeconomicFactors() {
-    // Обновление процентной ставки
     double interestRateChange = Random::getNormal(0.0, 0.001);
     state.interestRate = std::max(0.01, std::min(0.15, state.interestRate + interestRateChange));
 
-    // Обновление инфляции
     double inflationChange = Random::getNormal(0.0, 0.001);
     state.inflationRate = std::max(0.0, std::min(0.2, state.inflationRate + inflationChange));
 
-    // Обновление безработицы
     double unemploymentChange = Random::getNormal(0.0, 0.001);
     state.unemploymentRate = std::max(0.02, std::min(0.15, state.unemploymentRate + unemploymentChange));
 
-    // Корреляция между показателями
-    // Высокая инфляция -> повышение процентной ставки
     if (state.inflationRate > 0.05 && state.interestRate < 0.1) {
         state.interestRate += Random::getDouble(0.001, 0.003);
     }
 
-    // Высокая процентная ставка -> снижение экономической активности -> рост безработицы
     if (state.interestRate > 0.08 && state.unemploymentRate < 0.08) {
         state.unemploymentRate += Random::getDouble(0.001, 0.002);
     }
 
-    // Высокая безработица -> снижение инфляции
     if (state.unemploymentRate > 0.08 && state.inflationRate > 0.02) {
         state.inflationRate -= Random::getDouble(0.001, 0.002);
     }
@@ -363,7 +327,6 @@ void Market::updateMacroeconomicFactors() {
 double Market::generateMarketMovement() {
     double baseMovement = 0.0;
 
-    // Базовое движение зависит от текущего тренда
     switch (state.currentTrend) {
         case MarketTrend::Bullish:
             baseMovement = Random::getNormal(0.002, marketVolatility);
@@ -381,70 +344,53 @@ double Market::generateMarketMovement() {
             baseMovement = Random::getNormal(0.0, marketVolatility);
     }
 
-    // Учет цикличности (экономического цикла)
     double cyclicalComponent = std::sin(2.0 * M_PI * currentCycleDay / cycleLength) * 0.001;
 
-    // Учет макроэкономических факторов
     double macroComponent = 0.0;
 
-    // Высокая инфляция негативно влияет на рынок
     if (state.inflationRate > 0.05) {
         macroComponent -= (state.inflationRate - 0.05) * 0.1;
     }
 
-    // Высокая безработица негативно влияет на рынок
     if (state.unemploymentRate > 0.06) {
         macroComponent -= (state.unemploymentRate - 0.06) * 0.1;
     }
 
-    // Влияние процентной ставки (повышение ставки негативно для рынка)
     macroComponent -= (state.interestRate - 0.05) * 0.1;
 
-    // Суммарное движение с учетом всех факторов и инерции
     double totalMovement = (baseMovement + cyclicalComponent + macroComponent);
 
     return totalMovement;
 }
 
 double Market::generateSectorMovement(Sector sector) {
-    // Базовое движение зависит от общего движения рынка
     double marketMovement = (state.dailyChangePercent / 100.0);
 
-    // Случайная компонента для сектора
     double randomComponent = Random::getNormal(0.0, 0.005);
 
-    // Специфическое движение для каждого сектора
     double sectorSpecific = 0.0;
 
     switch (sector) {
         case Sector::Technology:
-            // Технологический сектор более волатилен
             sectorSpecific = randomComponent * 1.5;
-            // Технологии чувствительны к процентной ставке
             sectorSpecific -= (state.interestRate - 0.05) * 0.2;
             break;
 
         case Sector::Energy:
-            // Энергетика зависит от экономического цикла
             sectorSpecific = std::sin(2.0 * M_PI * currentCycleDay / cycleLength) * 0.002;
             break;
 
         case Sector::Finance:
-            // Финансы могут выигрывать от повышения ставок
             sectorSpecific += (state.interestRate - 0.05) * 0.1;
-            // Но страдают от высокой безработицы
             sectorSpecific -= (state.unemploymentRate - 0.05) * 0.2;
             break;
 
         case Sector::Consumer:
-            // Потребительский сектор зависит от безработицы
             sectorSpecific -= (state.unemploymentRate - 0.05) * 0.3;
-            // И от инфляции
             sectorSpecific -= (state.inflationRate - 0.02) * 0.2;
             break;
 
         case Sector::Manufacturing:
-            // Производство зависит от экономического цикла и инфляции
             sectorSpecific = std::sin(2.0 * M_PI * currentCycleDay / cycleLength) * 0.001;
             sectorSpecific -= (state.inflationRate - 0.02) * 0.1;
             break;
@@ -453,7 +399,6 @@ double Market::generateSectorMovement(Sector sector) {
             break;
     }
 
-    // Комбинирование всех компонентов
     double totalMovement = (marketMovement * 0.6) + (sectorSpecific * 0.4);
 
     return totalMovement;
@@ -536,7 +481,7 @@ MarketTrend Market::marketTrendFromString(const std::string& trendStr) {
     if (trendStr == "Sideways") return MarketTrend::Sideways;
     if (trendStr == "Volatile") return MarketTrend::Volatile;
 
-    return MarketTrend::Sideways; // По умолчанию боковой тренд
+    return MarketTrend::Sideways;
 }
 
 std::string Market::sectorToString(Sector sector) {

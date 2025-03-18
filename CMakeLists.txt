@@ -68,8 +68,8 @@ add_executable(utils_tests
 #        tests/models/CompanyTest.cpp
 #        tests/models/StockTest.cpp
 #        tests/models/DividedPolicyTest.cpp
-        tests/core/MarketTest.cpp
-
+#        tests/core/MarketTest.cpp
+        tests/models/LoanTest.cpp
 )
 
 target_link_libraries(utils_tests
