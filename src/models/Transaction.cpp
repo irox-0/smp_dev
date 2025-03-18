@@ -220,7 +220,7 @@ TransactionType Transaction::transactionTypeFromString(const std::string& typeSt
     if (typeStr == "Buy") return TransactionType::Buy;
     if (typeStr == "Sell") return TransactionType::Sell;
     
-    return TransactionType::Buy; // По умолчанию покупка
+    return TransactionType::Buy;
 }
 
 nlohmann::json Transaction::toJson() const {
@@ -259,7 +259,7 @@ Transaction Transaction::fromJson(const nlohmann::json& json) {
     transaction.executed = json["executed"];
     transaction.status = json["status"];
     
-    
+
     return transaction;
 }
 
