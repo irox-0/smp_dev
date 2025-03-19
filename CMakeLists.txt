@@ -73,7 +73,8 @@ add_executable(utils_tests
 #        tests/models/TransactionTest.cpp
 #        tests/models/PortfolioTest.cpp
 #        tests/core/PlayerTest.cpp
-        tests/models/NewsTest.cpp
+#        tests/models/NewsTest.cpp
+        tests/services/NewsServiceTest.cpp
 )
 
 target_link_libraries(utils_tests
