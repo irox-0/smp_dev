@@ -75,7 +75,8 @@ add_executable(utils_tests
 #        tests/core/PlayerTest.cpp
 #        tests/models/NewsTest.cpp
 #        tests/services/NewsServiceTest.cpp
-        tests/services/PriceServiceTest.cpp
+#        tests/services/PriceServiceTest.cpp
+        tests/services/SaveServiceTest.cpp
 )
 
 target_link_libraries(utils_tests

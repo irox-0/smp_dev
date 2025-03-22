@@ -98,6 +98,7 @@ TEST_F(PriceServiceTest, GeneratePriceMovementTest) {
     ASSERT_NE(energyCompany, nullptr);
     
     double bearishTechMovement = priceService->generatePriceMovement(techCompany, MarketTrend::Bearish);
+    double bullishTechMovement = priceService->generatePriceMovement(techCompany, MarketTrend::Bullish);
     double bullishEnergyMovement = priceService->generatePriceMovement(energyCompany, MarketTrend::Bullish);
     double bearishEnergyMovement = priceService->generatePriceMovement(energyCompany, MarketTrend::Bearish);
     
