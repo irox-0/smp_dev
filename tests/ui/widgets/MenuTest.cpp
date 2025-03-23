@@ -73,7 +73,7 @@ TEST_F(MenuTest, RemoveItemTest) {
     ASSERT_EQ(menu->getItem(0).getText(), "Item 1");
     ASSERT_EQ(menu->getItem(1).getText(), "Item 3");
 
-    menu->removeItem(10); // Invalid index
+    menu->removeItem(10);
     ASSERT_EQ(menu->getItemCount(), 2);
 }
 
@@ -112,7 +112,7 @@ TEST_F(MenuTest, SettersTest) {
     ASSERT_FALSE(menu->getExitOnSelect());
     ASSERT_FALSE(menu->isVisible());
 
-    menu->setWidth(-10); // Invalid width
+    menu->setWidth(-10);
     ASSERT_EQ(menu->getWidth(), 50);
 }
 
@@ -131,13 +131,13 @@ TEST_F(MenuTest, ColorSettersTest) {
 
 TEST_F(MenuTest, SelectionMethodsTest) {
     menu->addItem("Item 1");
-    menu->addItem("Item 2", nullptr, false); // Disabled item
+    menu->addItem("Item 2", nullptr, false);
     menu->addItem("Item 3");
 
     ASSERT_EQ(menu->getSelectedIndex(), 0);
 
     menu->selectNext();
-    ASSERT_EQ(menu->getSelectedIndex(), 2); // Skip disabled item
+    ASSERT_EQ(menu->getSelectedIndex(), 2);
 
     menu->selectNext();
     ASSERT_EQ(menu->getSelectedIndex(), 0);
@@ -148,16 +148,16 @@ TEST_F(MenuTest, SelectionMethodsTest) {
     ASSERT_TRUE(menu->selectItem(0));
     ASSERT_EQ(menu->getSelectedIndex(), 0);
 
-    ASSERT_FALSE(menu->selectItem(1)); // Cannot select disabled item
+    ASSERT_FALSE(menu->selectItem(1));
     ASSERT_EQ(menu->getSelectedIndex(), 0);
 
-    ASSERT_FALSE(menu->selectItem(5)); // Invalid index
+    ASSERT_FALSE(menu->selectItem(5));
     ASSERT_EQ(menu->getSelectedIndex(), 0);
 }
 
 TEST_F(MenuTest, ExecuteSelectedTest) {
     menu->addItem("Item 1", createCallback());
-    menu->addItem("Item 2", nullptr, false); // Disabled item
+    menu->addItem("Item 2", nullptr, false);
     menu->addItem("Item 3");
 
     menu->executeSelected();
@@ -166,7 +166,7 @@ TEST_F(MenuTest, ExecuteSelectedTest) {
     callbackExecuted = false;
     menu->selectItem(2);
     menu->executeSelected();
-    ASSERT_FALSE(callbackExecuted); // No callback for this item
+    ASSERT_FALSE(callbackExecuted);
 }
 
 TEST_F(MenuTest, MenuItemTest) {
@@ -184,7 +184,7 @@ TEST_F(MenuTest, MenuItemTest) {
     ASSERT_FALSE(item.isEnabled());
 
     item.execute();
-    ASSERT_FALSE(callbackExecuted); // Should not execute when disabled
+    ASSERT_FALSE(callbackExecuted);
 
     item.setEnabled(true);
     item.setText("New Text");
@@ -194,7 +194,7 @@ TEST_F(MenuTest, MenuItemTest) {
 
     item.setCallback(nullptr);
     item.execute();
-    ASSERT_FALSE(callbackExecuted); // Should not execute with null callback
+    ASSERT_FALSE(callbackExecuted);
 }
 
 TEST_F(MenuTest, DrawTest) {
@@ -207,7 +207,6 @@ TEST_F(MenuTest, DrawTest) {
     ASSERT_NO_THROW(menu->draw());
 }
 
-// Mock для тестирования метода run без реального ввода
 class MenuMock : public Menu {
 public:
     MenuMock() : Menu() {}
@@ -222,7 +221,6 @@ public:
         bool running = true;
         draw();
 
-        // Симулируем нажатие Escape для выхода из меню
         running = false;
     }
 };

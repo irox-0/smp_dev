@@ -3,7 +3,6 @@
 
 namespace StockMarketSimulator {
 
-// MenuItem implementation
 MenuItem::MenuItem(const std::string& text, std::function<void()> callback, bool enabled)
     : text(text), callback(callback), enabled(enabled)
 {
@@ -39,7 +38,6 @@ void MenuItem::execute() const {
     }
 }
 
-// Menu implementation
 Menu::Menu()
     : title(""), x(0), y(0), width(40), selectedIndex(0),
       normalFg(TextColor::White), normalBg(TextColor::Default),
@@ -238,19 +236,15 @@ void Menu::executeSelected() {
     void Menu::draw() const {
     if (!visible) return;
 
-    // Draw title
     if (!title.empty()) {
         Console::setCursorPosition(x, y);
         Console::setColor(titleFg, titleBg);
 
-        // Handle title formatting more safely
         std::string displayTitle;
 
         if (title.length() >= static_cast<size_t>(width)) {
-            // Title is too long, truncate it
             displayTitle = title.substr(0, width);
         } else {
-            // Calculate padding to center the title (safely)
             int titleLen = static_cast<int>(title.length());
             int leftPadding = std::max(0, (width - titleLen) / 2);
             int rightPadding = std::max(0, width - titleLen - leftPadding);
@@ -262,7 +256,6 @@ void Menu::executeSelected() {
         Console::resetAttributes();
     }
 
-    // Draw menu items (similarly update the item formatting)
     for (size_t i = 0; i < items.size(); i++) {
         Console::setCursorPosition(x, y + (title.empty() ? 0 : 1) + static_cast<int>(i));
 
@@ -276,10 +269,8 @@ void Menu::executeSelected() {
         std::string displayText;
 
         if (itemText.length() >= static_cast<size_t>(width)) {
-            // Text is too long, truncate it
             displayText = itemText.substr(0, width - 3) + "...";
         } else {
-            // Pad to width with spaces
             displayText = itemText + std::string(width - itemText.length(), ' ');
         }
 
@@ -323,11 +314,10 @@ void Menu::run() {
                 break;
                 
             default:
-                // Handle numeric keys
                 if (key >= '0' && key <= '9') {
                     int index = key - '0';
-                    if (index == 0) index = 10;  // Handle 0 as the 10th item
-                    else index--;  // Adjust for 1-based indexing in the menu display
+                    if (index == 0) index = 10;
+                    else index--;
                     
                     if (index >= 0 && index < static_cast<int>(items.size()) && 
                         items[index].isEnabled()) {

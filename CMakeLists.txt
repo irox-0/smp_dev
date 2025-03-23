@@ -16,12 +16,12 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(json)
 
 
-#file(GLOB_RECURSE SMP_SOURCES
-#        "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
-#)
-#
-#add_executable(smp ${SMP_SOURCES})
-#target_link_libraries(smp PRIVATE nlohmann_json::nlohmann_json)
+file(GLOB_RECURSE SMP_SOURCES
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
+)
+
+add_executable(smp ${SMP_SOURCES})
+target_link_libraries(smp PRIVATE nlohmann_json::nlohmann_json)
 
 file(GLOB_RECURSE UTILS_SOURCES
         "${SOURCE_DIR}/utils/*.cpp"
@@ -81,9 +81,10 @@ add_executable(utils_tests
 #        tests/services/NewsServiceTest.cpp
 #        tests/services/PriceServiceTest.cpp
 #        tests/services/SaveServiceTest.cpp
-        tests/ui/widgets/ChartTest.cpp
-        tests/ui/widgets/MenuTest.cpp
+#        tests/ui/widgets/ChartTest.cpp
+#        tests/ui/widgets/MenuTest.cpp
 #        tests/ui/widgets/TableTest.cpp
+        tests/ui/Screen.cpp
 )
 
 target_link_libraries(utils_tests

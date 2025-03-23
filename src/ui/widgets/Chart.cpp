@@ -139,10 +139,8 @@ void Chart::draw() const {
         chartHeight -= 1;
     }
 
-    // Draw chart with box
     Console::drawChart(x, chartY, width, chartHeight, data, minValue, maxValue, color);
 
-    // Draw X labels if present
     if (!xLabels.empty()) {
         int labelY = chartY + chartHeight;
         int numLabels = std::min(static_cast<int>(xLabels.size()), width - 2);
@@ -152,7 +150,6 @@ void Chart::draw() const {
             int labelX = x + 1 + i * labelWidth;
             Console::setCursorPosition(labelX, labelY);
 
-            // Truncate label if too long
             std::string label = xLabels[i];
             if (label.length() > static_cast<size_t>(labelWidth)) {
                 label = label.substr(0, labelWidth - 1);
@@ -162,9 +159,7 @@ void Chart::draw() const {
         }
     }
 
-    // Draw Y label if present
     if (!yLabel.empty()) {
-        // Draw Y label vertically along the left side of the chart
         for (size_t i = 0; i < yLabel.length() && i < static_cast<size_t>(chartHeight); i++) {
             Console::setCursorPosition(x - 2, chartY + i);
             std::string c(1, yLabel[i]);
