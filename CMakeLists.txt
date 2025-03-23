@@ -15,6 +15,14 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(json)
 
+
+#file(GLOB_RECURSE SMP_SOURCES
+#        "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
+#)
+#
+#add_executable(smp ${SMP_SOURCES})
+#target_link_libraries(smp PRIVATE nlohmann_json::nlohmann_json)
+
 file(GLOB_RECURSE UTILS_SOURCES
         "${SOURCE_DIR}/utils/*.cpp"
 )
@@ -54,17 +62,13 @@ FetchContent_Declare(
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
-file(GLOB_RECURSE TEST_SOURCES
-        "${CMAKE_CURRENT_SOURCE_DIR}/tests/utils/*.cpp"
-)
-
 enable_testing()
 include(GoogleTest)
 
 add_executable(utils_tests
-        #tests/utils/RandomTest.cpp
-        #tests/utils/ConsoleTest.cpp
-        #tests/utils/FileIOTest.cpp
+#        tests/utils/RandomTest.cpp
+#        tests/utils/ConsoleTest.cpp
+#        tests/utils/FileIOTest.cpp
 #        tests/models/CompanyTest.cpp
 #        tests/models/StockTest.cpp
 #        tests/models/DividedPolicyTest.cpp
@@ -76,7 +80,10 @@ add_executable(utils_tests
 #        tests/models/NewsTest.cpp
 #        tests/services/NewsServiceTest.cpp
 #        tests/services/PriceServiceTest.cpp
-        tests/services/SaveServiceTest.cpp
+#        tests/services/SaveServiceTest.cpp
+        tests/ui/widgets/ChartTest.cpp
+        tests/ui/widgets/MenuTest.cpp
+#        tests/ui/widgets/TableTest.cpp
 )
 
 target_link_libraries(utils_tests
