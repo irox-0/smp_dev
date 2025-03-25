@@ -461,7 +461,7 @@ void Console::sleep(int milliseconds) {
 
 void Console::waitForKey() {
     initialize();
-    std::cout << "Нажмите любую клавишу для продолжения...";
+    std::cout << "Press any key to continue...";
     readChar();
 }
 

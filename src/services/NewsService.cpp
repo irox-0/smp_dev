@@ -46,24 +46,24 @@ void NewsService::loadNewsTemplates(const std::string& filePath) {
 void NewsService::createDefaultTemplates() {
     newsTemplates.push_back(NewsTemplate(
         NewsType::Global,
-        "Центральный банк %s процентную ставку",
-        "Центральный банк принял решение %s базовую процентную ставку на %d базисных пунктов.",
+        "Central bank %s interest rate",
+        "The Central Bank has decided  %s base interest rate by  %d basis points.",
         -0.03, 0.03,
         false, false
     ));
     
     newsTemplates.push_back(NewsTemplate(
         NewsType::Global,
-        "Экономика показывает признаки %s",
-        "Согласно последним экономическим показателям, экономика демонстрирует явные признаки %s.",
+        "The economy is showing signs %s",
+        "According to the latest economic indicators, the economy is showing clear signs %s.",
         -0.02, 0.02,
         false, false
     ));
     
     newsTemplates.push_back(NewsTemplate(
         NewsType::Sector,
-        "Новые технологии в секторе",
-        "В секторе появились новые технологии, которые могут существенно повлиять на рынок.",
+        "New technologies in the sector",
+        "New technologies have emerged in the sector that can significantly affect the market.",
         0.01, 0.04,
         false, false,
         Sector::Technology
@@ -71,8 +71,8 @@ void NewsService::createDefaultTemplates() {
     
     newsTemplates.push_back(NewsTemplate(
         NewsType::Sector,
-        "Изменение цен на энергоносители",
-        "Мировые цены на энергоносители демонстрируют значительные колебания.",
+        "Changes in energy prices",
+        "Global energy prices show significant fluctuations.",
         -0.03, 0.03,
         false, false,
         Sector::Energy
@@ -80,16 +80,16 @@ void NewsService::createDefaultTemplates() {
     
     newsTemplates.push_back(NewsTemplate(
         NewsType::Corporate,
-        "%s объявляет о новом продукте",
-        "Компания %s объявила о выпуске нового продукта, который обещает изменить рынок.",
+        "%s announces a new product",
+        "Company %s announced the release of a new product that promises to change the market.",
         0.02, 0.06,
         false, false
     ));
     
     newsTemplates.push_back(NewsTemplate(
         NewsType::Corporate,
-        "%s публикует финансовый отчет",
-        "Компания %s опубликовала квартальный финансовый отчет. %s",
+        "%s publishes a financial report",
+        "Company %s published the quarterly financial report. %s",
         -0.04, 0.04,
         false, false
     ));
@@ -236,16 +236,16 @@ NewsTemplate NewsService::selectNewsTemplate(NewsType type, MarketTrend trend) {
     
     if (templates.empty()) {
         if (type == NewsType::Global) {
-            return NewsTemplate(type, "Мировые рынки показывают изменения", 
-                               "Мировые рынки демонстрируют значительные изменения.",
+            return NewsTemplate(type, "Global markets show changes",
+                               "Global markets are showing significant changes.",
                                -0.02, 0.02);
         } else if (type == NewsType::Sector) {
-            return NewsTemplate(type, "Изменения в секторе", 
-                               "В секторе наблюдаются важные изменения.",
+            return NewsTemplate(type, "Changes in the sector",
+                               "Important changes are being observed in the sector.",
                                -0.01, 0.01, false, false, Sector::Technology);
         } else {
-            return NewsTemplate(type, "Новости от компании", 
-                               "Компания выпустила важное заявление.",
+            return NewsTemplate(type, "News from the company",
+                               "The company has released an important statement.",
                                -0.03, 0.03);
         }
     }
@@ -284,12 +284,12 @@ std::string NewsService::processTemplate(const std::string& templ,
         while (pos != std::string::npos) {
             std::vector<std::string> possibleWords;
             
-            if (result.find("ставк") != std::string::npos) {
-                possibleWords = {"повысил", "снизил", "сохранил", "изменил"};
-            } else if (result.find("экономик") != std::string::npos) {
-                possibleWords = {"роста", "замедления", "стабилизации", "восстановления"};
+            if (result.find("rate") != std::string::npos) {
+                possibleWords = {"increased", "decreased", "saved", "changed"};
+            } else if (result.find("economic") != std::string::npos) {
+                possibleWords = {"growth", "deceleration", "stabilization", "recovery"};
             } else {
-                possibleWords = {"изменения", "важные новости", "обновленные данные"};
+                possibleWords = {"changes", "important news", "updated data"};
             }
             
             std::string replacement = possibleWords[Random::getIndex(possibleWords.size())];

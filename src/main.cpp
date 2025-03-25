@@ -1,103 +1,99 @@
-// main.cpp
+#include <memory>
 #include <iostream>
-#include <vector>
-#include <string>
-#include "ui/widgets/Table.hpp"
+#include "core/Market.hpp"
+#include "core/Player.hpp"
+#include "services/NewsService.hpp"
+#include "ui/screens/NewsScreen.hpp"
 #include "utils/Console.hpp"
 
 using namespace StockMarketSimulator;
 
+// Demo program to showcase the NewsScreen
 int main() {
+    // Initialize console
     Console::initialize();
     Console::clear();
 
-    std::vector<std::string> headers = {"ID", "Company", "Price", "Change", "Sector"};
-    std::vector<int> columnWidths = {5, 20, 10, 10, 15};
+    std::cout << "Initializing Stock Market Simulator..." << std::endl;
 
-    Table marketTable(2, 2, headers, columnWidths);
+    // Create core components
+    auto market = std::make_shared<Market>();
+    auto player = std::make_shared<Player>("Investor", 10000.0);
+    auto newsService = std::make_shared<NewsService>(market);
 
-    marketTable.addRow({"1", "TechCorp", "85.67", "+5.67%", "Technology"});
-    marketTable.addRow({"2", "EnergyPlus", "45.30", "+3.21%", "Energy"});
-    marketTable.addRow({"3", "BankCo", "32.10", "+1.20%", "Finance"});
-    marketTable.addRow({"4", "IndustryCo", "67.80", "+0.70%", "Manufacturing"});
-    marketTable.addRow({"5", "RetailGiant", "23.45", "-0.50%", "Consumer"});
-    marketTable.addRow({"6", "OilMax", "76.32", "-1.20%", "Energy"});
-    marketTable.addRow({"7", "FoodCorp", "34.56", "-1.50%", "Consumer"});
-    marketTable.addRow({"8", "ConsumerFirst", "56.78", "-2.87%", "Consumer"});
+    // Setup market
+    market->addDefaultCompanies();
+    player->setMarket(market);
 
-    Console::println("Рынок акций", TextColor::Green, TextColor::Default, TextStyle::Bold);
-    Console::println("Отсортировано по: ID (возрастание)\n");
-    marketTable.draw();
+    // Set current day
+    for (int i = 0; i < 15; i++) {
+        market->simulateDay();
+    }
 
-    Console::setCursorPosition(2, marketTable.calculateTableHeight() + 5);
-    Console::readChar();
+    std::cout << "Generating news items..." << std::endl;
 
-    marketTable.setSortFunction([](const std::vector<std::string>& a,
-                                 const std::vector<std::string>& b,
-                                 int columnIndex) {
-        auto extractChangeValue = [](const std::string& s) {
-            double value = 0.0;
-            try {
-                size_t pos = 0;
-                while (pos < s.length() && !isdigit(s[pos]) && s[pos] != '-' && s[pos] != '+') {
-                    pos++;
-                }
+    // Create sample news items
+    auto techCorp = market->getCompanyByTicker("TCH");
+    auto bankCo = market->getCompanyByTicker("BANK");
+    auto energyPlus = market->getCompanyByTicker("EPLC");
 
-                std::string numStr = s.substr(pos);
-                if (numStr.back() == '%') {
-                    numStr.pop_back();
-                }
+    // Global news
+    News globalNews1(NewsType::Global, "Central Bank reduced rate to 3.5%",
+                    "The Central Bank announced today that it has reduced the key interest rate by 0.5 percentage points to 3.5%. This decision was made to stimulate economic growth amid signs of slowing inflation. Analysts expect this move to have a positive impact on stock markets, particularly in sectors sensitive to interest rates such as Finance and Technology.",
+                    0.02, 15);
+    newsService->addCustomNews(globalNews1);
 
-                value = std::stod(numStr);
-            } catch (...) {
-            }
-            return value;
-        };
+    // Company news
+    News companyNews1(NewsType::Corporate, "TechCorp announced a new product",
+                     "TechCorp today unveiled its latest flagship product at a press conference in Silicon Valley. The new device features cutting-edge technology that the company claims will 'revolutionize the industry'. Market analysts predict strong sales, potentially boosting the company's revenue by up to 15% in the next quarter.",
+                     0.035, 15, techCorp);
+    newsService->addCustomNews(companyNews1);
 
-        double valueA = extractChangeValue(a[columnIndex]);
-        double valueB = extractChangeValue(b[columnIndex]);
+    // Sector news
+    News sectorNews1(NewsType::Sector, "Oil prices rose by 2.5%",
+                    "Global oil prices increased by 2.5% today following reports of reduced production in major oil-producing countries. This price surge is expected to benefit companies in the Energy sector, while potentially increasing costs for Transportation and Manufacturing businesses that rely heavily on fuel.",
+                    0.015, 14, Sector::Energy);
+    newsService->addCustomNews(sectorNews1);
 
-        return valueA < valueB;
-    });
+    // More news
+    News globalNews2(NewsType::Global, "Inflation data published: 2.1%",
+                    "Government statistics released today show that inflation for the last month stood at 2.1%, slightly below the 2.3% forecast by economists. This better-than-expected figure suggests that the economy is stabilizing, which could delay further interest rate hikes by the Central Bank.",
+                    -0.01, 13);
+    newsService->addCustomNews(globalNews2);
 
-    marketTable.sortByColumn(3, false);
+    News companyNews2(NewsType::Corporate, "BankCo announced dividend payments",
+                     "BankCo's board of directors has approved a quarterly dividend of $0.45 per share, representing a 5% increase from the previous quarter. The dividend will be payable to shareholders of record on the 25th of this month. The company cited strong financial performance and a positive outlook as reasons for the dividend increase.",
+                     0.02, 12, bankCo);
+    newsService->addCustomNews(companyNews2);
 
+    News sectorNews2(NewsType::Sector, "Tech sector reports strong growth",
+                    "The technology sector has reported an average revenue growth of 8.3% in the last quarter, outperforming market expectations of 6.5%. This strong performance is attributed to increased consumer spending on electronics and software, as well as growing enterprise investments in cloud services and digital transformation initiatives.",
+                    0.025, 11, Sector::Technology);
+    newsService->addCustomNews(sectorNews2);
+
+    News companyNews3(NewsType::Corporate, "EnergyPlus expands renewable portfolio",
+                     "EnergyPlus has announced the acquisition of three wind farms, significantly expanding its renewable energy portfolio. The company expects these assets to contribute approximately 12% to its annual electricity generation capacity and to be accretive to earnings within the first year of operation.",
+                     0.018, 10, energyPlus);
+    newsService->addCustomNews(companyNews3);
+
+    // Create and configure NewsScreen
+    std::cout << "Launching News Screen..." << std::endl;
+    auto newsScreen = std::make_shared<NewsScreen>();
+    newsScreen->setPosition(0, 0);
+    newsScreen->setSize(50, 24);
+    newsScreen->setMarket(market);
+    newsScreen->setPlayer(player);
+    newsScreen->setNewsService(newsService);
+
+    // Initialize and run the screen
+    newsScreen->initialize();
     Console::clear();
-    Console::println("Рынок акций", TextColor::Green, TextColor::Default, TextStyle::Bold);
-    Console::println("Отсортировано по: Изменению цены (убывание)\n");
-    marketTable.draw();
+    newsScreen->run();
 
-    Console::setCursorPosition(2, marketTable.calculateTableHeight() + 5);
-    Console::readChar();
-
+    // Clean up
     Console::clear();
-    Console::println("Мой портфель", TextColor::Green, TextColor::Default, TextStyle::Bold);
-    Console::println("Общая стоимость: 8,450.75$   Изменение за день: +120.25$ (+1.44%)\n");
+    Console::setCursorPosition(0, 0);
+    std::cout << "Thank you for using the Stock Market Simulator!" << std::endl;
 
-    std::vector<std::string> headers1 = {"Stock", "N", "Avg.price", "Cur.price", "P/L"};
-    Table portfolioTable(2, 2, headers1, {10, 10, 10, 10, 10});
-
-    portfolioTable.addRow({"TechCorp", "50", "75.30$", "85.67$", "+10.4%"});
-    portfolioTable.addRow({"EnergyPls", "70", "42.20$", "45.30$", "+7.3%"});
-    portfolioTable.addRow({"BankCo", "30", "33.10$", "32.10$", "-3.0%"});
-    portfolioTable.addRow({"OilMax", "20", "80.50$", "76.32$", "-5.2%"});
-
-    portfolioTable.draw();
-
-
-     Table sectorTable(2, portfolioTable.calculateTableHeight() + 7,
-                      {"Sector", "Share"}, {15, 10});
-
-     sectorTable.addRow({"Technology", "50.7%"});
-     sectorTable.addRow({"Energy", "33.1%"});
-     sectorTable.addRow({"Finance", "16.2%"});
-
-     sectorTable.draw();
-
-
-    Console::setCursorPosition(2, sectorTable.calculateTableHeight() + sectorTable.getY() + 2);
-    Console::readChar();
-
-    Console::clear();
     return 0;
 }

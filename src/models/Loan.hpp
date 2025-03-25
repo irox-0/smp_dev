@@ -7,7 +7,6 @@
 
 namespace StockMarketSimulator {
 
-// Класс для управления кредитами
 class Loan {
 private:
     double amount;

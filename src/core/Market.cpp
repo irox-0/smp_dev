@@ -108,7 +108,7 @@ std::vector<std::shared_ptr<Company>> Market::getCompaniesBySector(Sector sector
 void Market::addDefaultCompanies() {
     auto techCorp = std::make_shared<Company>(
         "TechCorp", "TCH",
-        "Ведущая технологическая компания, специализирующаяся на программном обеспечении и облачных сервисах",
+        "A leading technology company specializing in software and cloud services",
         Sector::Technology,
         85.75, 0.75,
         DividendPolicy(1.6, 4)
@@ -116,7 +116,7 @@ void Market::addDefaultCompanies() {
 
     auto innovaTech = std::make_shared<Company>(
         "InnovaTech", "ITECH",
-        "Инновационная компания, разрабатывающая мобильные устройства и приложения",
+        "An innovative company developing mobile devices and applications",
         Sector::Technology,
         125.30, 0.85,
         DividendPolicy(0.0, 0)
@@ -124,7 +124,7 @@ void Market::addDefaultCompanies() {
 
     auto energyPlus = std::make_shared<Company>(
         "EnergyPlus", "EPLC",
-        "Энергетическая компания, специализирующаяся на возобновляемых источниках энергии",
+        "An energy company specializing in renewable energy sources",
         Sector::Energy,
         45.20, 0.5,
         DividendPolicy(3.5, 4)
@@ -132,7 +132,7 @@ void Market::addDefaultCompanies() {
 
     auto oilMax = std::make_shared<Company>(
         "OilMax", "OMAX",
-        "Нефтегазовая компания с глобальным присутствием",
+        "An oil and gas company with a global presence",
         Sector::Energy,
         76.45, 0.6,
         DividendPolicy(4.2, 4)
@@ -140,7 +140,7 @@ void Market::addDefaultCompanies() {
 
     auto bankCo = std::make_shared<Company>(
         "BankCo", "BANK",
-        "Крупный коммерческий банк с широким спектром финансовых услуг",
+        "A large commercial bank with a wide range of financial services",
         Sector::Finance,
         32.15, 0.45,
         DividendPolicy(3.8, 4)
@@ -148,7 +148,7 @@ void Market::addDefaultCompanies() {
 
     auto secureFin = std::make_shared<Company>(
         "SecureFin", "SFIN",
-        "Финансовая компания, специализирующаяся на страховании и инвестициях",
+        "A financial company specializing in insurance and investments",
         Sector::Finance,
         54.80, 0.5,
         DividendPolicy(2.5, 4)
@@ -156,7 +156,7 @@ void Market::addDefaultCompanies() {
 
     auto retailGiant = std::make_shared<Company>(
         "RetailGiant", "RTGL",
-        "Крупнейшая сеть розничных магазинов",
+        "The largest chain of retail stores",
         Sector::Consumer,
         23.50, 0.4,
         DividendPolicy(2.2, 4)
@@ -164,7 +164,7 @@ void Market::addDefaultCompanies() {
 
     auto foodCorp = std::make_shared<Company>(
         "FoodCorp", "FOOD",
-        "Производитель и дистрибьютор продуктов питания",
+        "Food Manufacturer and Distributor",
         Sector::Consumer,
         34.60, 0.35,
         DividendPolicy(1.8, 4)
@@ -172,7 +172,7 @@ void Market::addDefaultCompanies() {
 
     auto industrialCo = std::make_shared<Company>(
         "IndustrialCo", "INDL",
-        "Промышленная компания, производящая оборудование и машины",
+        "An industrial company that manufactures equipment and machinery",
         Sector::Manufacturing,
         67.90, 0.55,
         DividendPolicy(2.8, 4)

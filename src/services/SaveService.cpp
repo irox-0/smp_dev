@@ -185,8 +185,8 @@ std::vector<SaveMetadata> SaveService::listSaves() const {
                 nlohmann::json metadataJson = FileIO::readJsonFile(metadataPath);
                 saves.push_back(SaveMetadata::fromJson(metadataJson));
             } catch (const std::exception& e) {
-                std::string displayName = "Ошибка метаданных: " + file;
-                SaveMetadata errorMetadata(file, displayName, 0, 0.0, "Поврежденный файл", false);
+                std::string displayName = "Metadata error: " + file;
+                SaveMetadata errorMetadata(file, displayName, 0, 0.0, "Damaged file", false);
                 saves.push_back(errorMetadata);
             }
         } else {

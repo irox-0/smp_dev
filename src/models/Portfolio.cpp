@@ -291,7 +291,6 @@ bool Portfolio::sellStock(std::shared_ptr<Company> company, int quantity, double
     if (position.quantity == quantity) {
         positions.erase(ticker);
     } else {
-        // Уменьшаем позицию
         double remainingCost = position.totalCost * (static_cast<double>(position.quantity - quantity) / position.quantity);
         position.quantity -= quantity;
         position.totalCost = remainingCost;
