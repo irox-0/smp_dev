@@ -86,7 +86,8 @@ add_executable(utils_tests
 #        tests/ui/widgets/TableTest.cpp
 #        tests/ui/ScreenTest.cpp
 #        tests/ui/screens/MainScreenTest.cpp
-        tests/ui/screens/NewsScreenTest.cpp
+#        tests/ui/screens/NewsScreenTest.cpp
+        tests/ui/screens/MarketScreenTest.cpp
 )
 
 target_link_libraries(utils_tests

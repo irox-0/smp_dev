@@ -1,99 +1,102 @@
 #include <memory>
 #include <iostream>
+#include "utils/Console.hpp"
 #include "core/Market.hpp"
 #include "core/Player.hpp"
 #include "services/NewsService.hpp"
 #include "ui/screens/NewsScreen.hpp"
-#include "utils/Console.hpp"
 
 using namespace StockMarketSimulator;
 
-// Demo program to showcase the NewsScreen
 int main() {
-    // Initialize console
-    Console::initialize();
-    Console::clear();
+    try {
+        // Initialize console
+        Console::initialize();
+        Console::clear();
 
-    std::cout << "Initializing Stock Market Simulator..." << std::endl;
+        // Set up market
+        auto market = std::make_shared<Market>();
+        market->addDefaultCompanies();
 
-    // Create core components
-    auto market = std::make_shared<Market>();
-    auto player = std::make_shared<Player>("Investor", 10000.0);
-    auto newsService = std::make_shared<NewsService>(market);
+        // Set up initial game day
+        for (int i = 0; i < 15; i++) {
+            market->simulateDay();
+        }
 
-    // Setup market
-    market->addDefaultCompanies();
-    player->setMarket(market);
+        // Set up player
+        auto player = std::make_shared<Player>("Test Player", 10000.0);
+        player->setMarket(market);
 
-    // Set current day
-    for (int i = 0; i < 15; i++) {
-        market->simulateDay();
+        // Set up news service
+        auto newsService = std::make_shared<NewsService>(market);
+
+        // Add sample news
+        // 1. Global news
+        News globalNews1(NewsType::Global, "Central Bank reduced rate to 3.5%",
+                      "The Central Bank announced an unexpected reduction in the base interest rate from 4.0% to 3.5%. "
+                      "Analysts believe this move aims to stimulate economic growth amid concerns of a potential slowdown. "
+                      "Markets responded positively to the news, with most indices showing gains.",
+                      0.02, 15);
+        newsService->addCustomNews(globalNews1);
+
+        News globalNews2(NewsType::Global, "Inflation data published: 2.1%",
+                      "The National Bureau of Statistics released the latest inflation figures, showing an annual inflation rate of 2.1%. "
+                      "This is slightly below market expectations of 2.3%, indicating that inflationary pressures may be easing. "
+                      "This could influence future monetary policy decisions.",
+                      0.01, 13);
+        newsService->addCustomNews(globalNews2);
+
+        // 2. Sector news
+        News energySectorNews(NewsType::Sector, "Oil prices rose by 2.5%",
+                           "Global oil prices increased by 2.5% following reports of reduced output from major producing countries. "
+                           "The price surge is expected to impact profit margins across the energy sector, with downstream companies "
+                           "potentially facing increased costs.",
+                           -0.01, 14, Sector::Energy);
+        newsService->addCustomNews(energySectorNews);
+
+        News techSectorNews(NewsType::Sector, "Tech sector sees workforce reductions",
+                         "Major technology companies announced plans to reduce their workforce by an average of 5% due to economic uncertainty. "
+                         "The job cuts are expected to help companies maintain profitability amid slowing revenue growth.",
+                         -0.015, 12, Sector::Technology);
+        newsService->addCustomNews(techSectorNews);
+
+        // 3. Company news
+        auto techCorp = market->getCompanyByTicker("TCH");
+        News companyNews1(NewsType::Corporate, "TechCorp announced a new product",
+                       "TechCorp unveiled its latest flagship product during its annual developer conference. "
+                       "The new device features significant performance improvements and several innovative features. "
+                       "Pre-orders have exceeded initial projections by 35%.",
+                       0.03, 14, techCorp);
+        newsService->addCustomNews(companyNews1);
+
+        auto bankCo = market->getCompanyByTicker("BANK");
+        News companyNews2(NewsType::Corporate, "BankCo announced dividend payments",
+                       "BankCo's board of directors approved a quarterly dividend payment of $0.45 per share, "
+                       "representing a 5% increase from the previous quarter. The dividend will be paid "
+                       "to shareholders of record as of the end of the month.",
+                       0.015, 12, bankCo);
+        newsService->addCustomNews(companyNews2);
+
+        // Create and display the NewsScreen
+        auto newsScreen = std::make_shared<NewsScreen>();
+        newsScreen->setMarket(market);
+        newsScreen->setPlayer(player);
+        newsScreen->setNewsService(newsService);
+
+        // Initialize and run the screen
+        newsScreen->initialize();
+        newsScreen->run();
+
+        // Clean up
+        Console::clear();
+        Console::setCursorPosition(0, 0);
+        Console::resetAttributes();
+
+        return 0;
     }
-
-    std::cout << "Generating news items..." << std::endl;
-
-    // Create sample news items
-    auto techCorp = market->getCompanyByTicker("TCH");
-    auto bankCo = market->getCompanyByTicker("BANK");
-    auto energyPlus = market->getCompanyByTicker("EPLC");
-
-    // Global news
-    News globalNews1(NewsType::Global, "Central Bank reduced rate to 3.5%",
-                    "The Central Bank announced today that it has reduced the key interest rate by 0.5 percentage points to 3.5%. This decision was made to stimulate economic growth amid signs of slowing inflation. Analysts expect this move to have a positive impact on stock markets, particularly in sectors sensitive to interest rates such as Finance and Technology.",
-                    0.02, 15);
-    newsService->addCustomNews(globalNews1);
-
-    // Company news
-    News companyNews1(NewsType::Corporate, "TechCorp announced a new product",
-                     "TechCorp today unveiled its latest flagship product at a press conference in Silicon Valley. The new device features cutting-edge technology that the company claims will 'revolutionize the industry'. Market analysts predict strong sales, potentially boosting the company's revenue by up to 15% in the next quarter.",
-                     0.035, 15, techCorp);
-    newsService->addCustomNews(companyNews1);
-
-    // Sector news
-    News sectorNews1(NewsType::Sector, "Oil prices rose by 2.5%",
-                    "Global oil prices increased by 2.5% today following reports of reduced production in major oil-producing countries. This price surge is expected to benefit companies in the Energy sector, while potentially increasing costs for Transportation and Manufacturing businesses that rely heavily on fuel.",
-                    0.015, 14, Sector::Energy);
-    newsService->addCustomNews(sectorNews1);
-
-    // More news
-    News globalNews2(NewsType::Global, "Inflation data published: 2.1%",
-                    "Government statistics released today show that inflation for the last month stood at 2.1%, slightly below the 2.3% forecast by economists. This better-than-expected figure suggests that the economy is stabilizing, which could delay further interest rate hikes by the Central Bank.",
-                    -0.01, 13);
-    newsService->addCustomNews(globalNews2);
-
-    News companyNews2(NewsType::Corporate, "BankCo announced dividend payments",
-                     "BankCo's board of directors has approved a quarterly dividend of $0.45 per share, representing a 5% increase from the previous quarter. The dividend will be payable to shareholders of record on the 25th of this month. The company cited strong financial performance and a positive outlook as reasons for the dividend increase.",
-                     0.02, 12, bankCo);
-    newsService->addCustomNews(companyNews2);
-
-    News sectorNews2(NewsType::Sector, "Tech sector reports strong growth",
-                    "The technology sector has reported an average revenue growth of 8.3% in the last quarter, outperforming market expectations of 6.5%. This strong performance is attributed to increased consumer spending on electronics and software, as well as growing enterprise investments in cloud services and digital transformation initiatives.",
-                    0.025, 11, Sector::Technology);
-    newsService->addCustomNews(sectorNews2);
-
-    News companyNews3(NewsType::Corporate, "EnergyPlus expands renewable portfolio",
-                     "EnergyPlus has announced the acquisition of three wind farms, significantly expanding its renewable energy portfolio. The company expects these assets to contribute approximately 12% to its annual electricity generation capacity and to be accretive to earnings within the first year of operation.",
-                     0.018, 10, energyPlus);
-    newsService->addCustomNews(companyNews3);
-
-    // Create and configure NewsScreen
-    std::cout << "Launching News Screen..." << std::endl;
-    auto newsScreen = std::make_shared<NewsScreen>();
-    newsScreen->setPosition(0, 0);
-    newsScreen->setSize(50, 24);
-    newsScreen->setMarket(market);
-    newsScreen->setPlayer(player);
-    newsScreen->setNewsService(newsService);
-
-    // Initialize and run the screen
-    newsScreen->initialize();
-    Console::clear();
-    newsScreen->run();
-
-    // Clean up
-    Console::clear();
-    Console::setCursorPosition(0, 0);
-    std::cout << "Thank you for using the Stock Market Simulator!" << std::endl;
-
-    return 0;
+    catch (const std::exception& e) {
+        Console::resetAttributes();
+        std::cerr << "Error: " << e.what() << std::endl;
+        return 1;
+    }
 }

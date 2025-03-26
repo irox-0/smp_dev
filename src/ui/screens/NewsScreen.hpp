@@ -3,7 +3,7 @@
 #include "../Screen.hpp"
 #include "../../models/News.hpp"
 #include "../../services/NewsService.hpp"
-#include "../../utils/Console.hpp"
+#include "../../ui/widgets/Table.hpp"
 #include <vector>
 #include <memory>
 

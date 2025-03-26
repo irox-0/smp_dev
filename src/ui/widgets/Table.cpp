@@ -274,8 +274,17 @@ void Table::draw() const {
 
 int Table::calculateTableHeight() const {
 
-    int rowCount = static_cast<int>(data.size());
-    return rowCount + 1 + (hasHeader && !headers.empty() ? 1 : 0);
+    int numDataRows = static_cast<int>(data.size());
+
+    // Calculate the table's height (accounting for all rows, separators, and borders)
+    int tableHeight;
+    if (!headers.empty()) {
+        tableHeight = 3 + (2 * numDataRows); // Top border, header, separator, rows with separators, bottom border
+    } else {
+        tableHeight = 1 + (2 * numDataRows); // Top border, rows with separators, bottom border
+    }
+    //int rowCount = static_cast<int>(data.size());
+    return tableHeight;
 }
 
 int Table::calculateTableWidth() const {

@@ -223,7 +223,7 @@ void Console::drawHorizontalLine(int x, int y, int length, TextColor fg, TextCol
     initialize();
     setColor(fg, bg);
     setCursorPosition(x, y);
-    std::cout << std::string(length, '-');
+    std::cout << "+" + std::string(length - 2, '-') + "+";
     resetAttributes();
 }
 
