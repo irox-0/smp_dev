@@ -40,7 +40,6 @@ void NewsScreen::updateDisplayedNews() {
 
     const std::vector<News>& allNews = newsServicePtr->getNewsHistory();
 
-    // Filter news by type
     std::vector<News> filteredNews;
 
     for (const auto& news : allNews) {
@@ -66,22 +65,18 @@ void NewsScreen::updateDisplayedNews() {
         }
     }
 
-    // Sort news by publish day (newest first)
     std::sort(filteredNews.begin(), filteredNews.end(),
              [](const News& a, const News& b) {
                  return a.getPublishDay() > b.getPublishDay();
              });
 
-    // Calculate page bounds
     int totalNews = static_cast<int>(filteredNews.size());
     int totalPages = std::max(1, (totalNews + newsPerPage - 1) / newsPerPage);
 
-    // Adjust current page if needed
     if (currentPage >= totalPages) {
         currentPage = std::max(0, totalPages - 1);
     }
 
-    // Get subset of news for current page
     int startIndex = currentPage * newsPerPage;
     int endIndex = std::min(startIndex + newsPerPage, totalNews);
 
@@ -92,21 +87,15 @@ void NewsScreen::updateDisplayedNews() {
 }
 
 void NewsScreen::drawContent() const {
-    // Note: The base Screen class already draws the border and title
-    // We just need to fill in the content
 
-    // Draw filter bar
     drawFilterInfo();
 
-    // Draw news list
     drawNewsList();
 
-    // Draw navigation options
     drawNavigationOptions();
 }
 
 void NewsScreen::drawFilterInfo() const {
-    // Fill in the filter info area
     Console::setCursorPosition(x + 2, y + 2);
     Console::setColor(TextColor::White, bodyBg);
 
@@ -120,14 +109,12 @@ void NewsScreen::drawFilterInfo() const {
 
     Console::print("Filter: " + filterName);
 
-    // Display current date
     auto marketPtr = market.lock();
     if (marketPtr) {
         Console::setCursorPosition(x + width - 22, y + 2);
         Console::print("Date: " + std::to_string(marketPtr->getCurrentDay()) + ".03.2023");
     }
 
-    // Draw separator line
     Console::setCursorPosition(x, y + 3);
     Console::drawHorizontalLine(x, y + 3, width);
 }
@@ -145,7 +132,6 @@ void NewsScreen::drawNewsList() const {
     for (size_t i = 0; i < displayedNews.size(); i++) {
         const News& news = displayedNews[i];
 
-        // Format news type and date
         std::string typeStr;
         switch (news.getType()) {
             case NewsType::Global:
@@ -173,19 +159,15 @@ void NewsScreen::drawNewsList() const {
                 break;
         }
 
-        // Display type and date
         Console::setCursorPosition(x + 2, newsY);
         Console::setColor(TextColor::Cyan, bodyBg);
         Console::print(typeStr + " " + std::to_string(news.getPublishDay()) + ".03.2023");
 
-        // Display title/content
         Console::setCursorPosition(x + 2, newsY + 1);
         Console::setColor(bodyFg, bodyBg);
         Console::print(news.getTitle());
 
-        // Add empty line after each news item
         Console::setCursorPosition(x + 2, newsY + 2);
-        // Fill the line with spaces to ensure a clean empty line
         Console::print(std::string(width - 4, ' '));
 
         newsY += 3;
@@ -193,32 +175,26 @@ void NewsScreen::drawNewsList() const {
 }
 
 void NewsScreen::drawNavigationOptions() const {
-    // Calculate positions to ensure we stay within borders
     int bottomAreaStart = y + height - 10;
 
-    // Draw a horizontal separator line
     Console::setCursorPosition(x, bottomAreaStart);
     Console::drawHorizontalLine(x, bottomAreaStart, width);
 
     int optionsY = bottomAreaStart + 1;
 
-    // Empty line
     Console::setCursorPosition(x + 2, optionsY);
     Console::setColor(bodyFg, bodyBg);
     Console::print(std::string(width - 4, ' '));
 
-    // Instructions
     Console::setCursorPosition(x + 2, optionsY);
     Console::print("To view the full text of the news");
 
     Console::setCursorPosition(x + 2, optionsY + 2);
     Console::print("enter its number (1-" + std::to_string(displayedNews.size()) + "):");
 
-    // Empty line
     Console::setCursorPosition(x + 2, optionsY + 3);
     Console::print(std::string(width - 4, ' '));
 
-    // Menu options
     Console::setCursorPosition(x + 2, optionsY + 4);
     Console::print("6. Change Filter");
 
@@ -233,7 +209,6 @@ void NewsScreen::drawNavigationOptions() const {
 }
 
 bool NewsScreen::handleInput(int key) {
-    // Handle numeric keys for news selection
     if (key >= '1' && key <= '5') {
         int newsIndex = key - '1';
         if (newsIndex >= 0 && newsIndex < static_cast<int>(displayedNews.size())) {
@@ -242,22 +217,21 @@ bool NewsScreen::handleInput(int key) {
         return true;
     }
 
-    // Handle other options
     switch (key) {
-        case '6': // Change filter
+        case '6':
             changeFilter();
             return true;
 
-        case '7': // Previous page
+        case '7':
             previousPage();
             return true;
 
-        case '8': // Next page
+        case '8':
             nextPage();
             return true;
 
-        case '0': // Return to main menu
-        case 27:  // ESC key
+        case '0':
+        case 27:
             close();
             return false;
 
@@ -267,28 +241,22 @@ bool NewsScreen::handleInput(int key) {
 }
 
 void NewsScreen::displayNewsDetails(const News& news) {
-    // Store original title
     std::string originalTitle = getTitle();
 
-    // Update screen for news details
     setTitle("NEWS DETAILS");
 
-    // Draw our screen with the new title
     draw();
 
-    // Clear the screen area for content
     for (int i = y + 2; i < y + height - 1; i++) {
         Console::setCursorPosition(x + 1, i);
         Console::setColor(bodyFg, bodyBg);
         Console::print(std::string(width - 2, ' '));
     }
 
-    // Redraw box outline to ensure it's clean
     drawBorder();
 
     int contentY = y + 3;
 
-    // Display news type and date
     Console::setCursorPosition(x + 2, contentY);
     Console::setColor(TextColor::Cyan, bodyBg);
 
@@ -322,7 +290,6 @@ void NewsScreen::displayNewsDetails(const News& news) {
     Console::print(typeStr + " " + std::to_string(news.getPublishDay()) + ".03.2023");
     contentY += 2;
 
-    // Display title
     Console::setCursorPosition(x + 2, contentY);
     Console::setColor(TextColor::White, bodyBg);
     Console::setStyle(TextStyle::Bold);
@@ -330,7 +297,6 @@ void NewsScreen::displayNewsDetails(const News& news) {
     Console::setStyle(TextStyle::Regular);
     contentY += 2;
 
-    // Display content with word wrapping
     Console::setColor(bodyFg, bodyBg);
     std::string content = news.getContent();
 
@@ -362,7 +328,6 @@ void NewsScreen::displayNewsDetails(const News& news) {
 
     contentY += 2;
 
-    // Display market impact
     Console::setCursorPosition(x + 2, contentY);
     Console::setColor(TextColor::Yellow, bodyBg);
     Console::print("Market Impact: ");
@@ -381,21 +346,17 @@ void NewsScreen::displayNewsDetails(const News& news) {
 
     contentY += 2;
 
-    // Press any key to continue
     Console::setCursorPosition(x + 2, y + height - 3);
     Console::setColor(bodyFg, bodyBg);
     Console::print("Press any key to return...");
 
-    // Wait for key press
     Console::readChar();
 
-    // Restore original title and redraw main screen
     setTitle(originalTitle);
     draw();
 }
 
 void NewsScreen::changeFilter() {
-    // Define filter options
     std::vector<std::string> options = {
         "All News",
         "Global News",
@@ -403,23 +364,19 @@ void NewsScreen::changeFilter() {
         "Company News"
     };
 
-    // Calculate the position for the navigation area
     int bottomAreaStart = y + height - 10;
     int optionsY = bottomAreaStart + 1;
 
-    // Clear the navigation options area first
     for (int i = bottomAreaStart + 1; i < y + height - 2; i++) {
         Console::setCursorPosition(x + 1, i);
         Console::setColor(bodyFg, bodyBg);
         Console::print(std::string(width - 2, ' '));
     }
 
-    // Draw a title for the filter selection
     Console::setCursorPosition(x + 2, optionsY);
     Console::setColor(TextColor::Cyan, bodyBg);
     Console::print("SELECT FILTER TYPE:");
 
-    // Position the menu in the navigation options area
     int menuX = x + 2;
     int menuY = optionsY + 2;
 
@@ -427,7 +384,6 @@ void NewsScreen::changeFilter() {
     bool running = true;
 
     while (running) {
-        // Draw the menu options
         for (size_t i = 0; i < options.size(); i++) {
             Console::setCursorPosition(menuX, menuY + static_cast<int>(i));
 
@@ -439,21 +395,18 @@ void NewsScreen::changeFilter() {
                 Console::print("  " + options[i]);
             }
 
-            // Clear the rest of the line to prevent artifacts
-            int paddingLength = width - 4 - options[i].length() - 2; // -4 for borders, -2 for "> "
+            int paddingLength = width - 4 - options[i].length() - 2;
             if (paddingLength > 0) {
                 Console::print(std::string(paddingLength, ' '));
             }
         }
 
-        // Add instructions at the bottom
         Console::setCursorPosition(x + 2, menuY + static_cast<int>(options.size()) + 1);
         Console::setColor(bodyFg, bodyBg);
         Console::print("Press Enter to select or Esc to cancel");
 
         Console::resetAttributes();
 
-        // Handle key input
         char key = Console::readChar();
 
         switch (key) {
@@ -475,7 +428,7 @@ void NewsScreen::changeFilter() {
                 break;
 
             default:
-                if (key >= '1' && key <= '4') { // 1-4 for menu options
+                if (key >= '1' && key <= '4') {
                     selected = key - '1';
                     running = false;
                 }
@@ -492,7 +445,6 @@ void NewsScreen::changeFilter() {
         }
     }
 
-    // Completely redraw screen to restore navigation options
     draw();
 }
 
@@ -553,7 +505,6 @@ int NewsScreen::getTotalPages() const {
 
     const std::vector<News>& allNews = newsServicePtr->getNewsHistory();
 
-    // Count news that match current filter
     int filteredCount = 0;
     for (const auto& news : allNews) {
         bool shouldInclude = false;

@@ -1,8 +1,8 @@
 #include <gtest/gtest.h>
-#include "ui/screens/NewsScreen.hpp"
-#include "services/NewsService.hpp"
-#include "core/Market.hpp"
-#include "core/Player.hpp"
+#include "../../../src/ui/screens/NewsScreen.hpp"
+#include "../../../src/services/NewsService.hpp"
+#include "../../../src/core/Market.hpp"
+#include "../../../src/core/Player.hpp"
 #include <memory>
 
 namespace StockMarketSimulator {
