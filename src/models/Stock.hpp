@@ -5,6 +5,7 @@
 #include <memory>
 #include <nlohmann/json.hpp>
 #include <ctime>
+#include "../utils/Date.hpp"
 
 namespace StockMarketSimulator {
 
@@ -16,6 +17,7 @@ private:
     double currentPrice;
     std::vector<double> priceHistory;
     std::time_t lastUpdateTime;
+    Date lastUpdateDate;
 
     double highestPrice;
     double lowestPrice;
@@ -46,6 +48,7 @@ public:
     std::vector<double> getPriceHistory() const;
     size_t getPriceHistoryLength() const;
     std::weak_ptr<Company> getCompany() const;
+    Date getLastUpdateDate() const;
 
     void updatePrice(double newPrice);
     void calculateDailyChange();
@@ -57,6 +60,9 @@ public:
 
     void closeDay();
     void openDay();
+
+    void closeDay(const Date& currentDate);
+    void openDay(const Date& currentDate);
 
     void setMarketInfluence(double influence);
     void setSectorInfluence(double influence);

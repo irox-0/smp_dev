@@ -80,7 +80,7 @@ add_executable(utils_tests
 #        tests/models/NewsTest.cpp
 #        tests/services/NewsServiceTest.cpp
 #        tests/services/PriceServiceTest.cpp
-#        tests/services/SaveServiceTest.cpp
+        tests/services/SaveServiceTest.cpp
 #        tests/ui/widgets/ChartTest.cpp
 #        tests/ui/widgets/MenuTest.cpp
 #        tests/ui/widgets/TableTest.cpp
@@ -88,7 +88,9 @@ add_executable(utils_tests
 #        tests/ui/screens/MainScreenTest.cpp
 #        tests/ui/screens/NewsScreenTest.cpp
 #        tests/ui/screens/MarketScreenTest.cpp
-        tests/ui/screens/FinancialScreenTest.cpp
+#        tests/ui/screens/FinancialScreenTest.cpp
+#        tests/ui/screens/CompanyScreenTest.cpp
+#        tests/ui/screens/MarketCompanyIntegrationTest.cpp
 )
 
 target_link_libraries(utils_tests

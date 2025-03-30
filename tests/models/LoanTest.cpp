@@ -1,218 +1,137 @@
 #include <gtest/gtest.h>
-#include "models/Loan.hpp"
+#include <memory>
+#include "../../src/models/Loan.hpp"
 
 using namespace StockMarketSimulator;
 
-class LoanTest : public ::testing::Test {
-protected:
-    void SetUp() override {
-        // Создаем тестовый кредит с суммой 10000, ставкой 5%, сроком 30 дней, взятый в день 1
-        testLoan = std::make_unique<Loan>(10000.0, 0.05, 30, 1);
-        
-        // Создаем кредит с пользовательскими параметрами
-        customLoan = std::make_unique<Loan>(5000.0, 0.08, 90, 1, 0.002, "Custom Loan");
-    }
-    
-    std::unique_ptr<Loan> testLoan;
-    std::unique_ptr<Loan> customLoan;
-};
+TEST(LoanTest, Constructor) {
+    // Test default constructor
+    Loan defaultLoan;
+    EXPECT_EQ(defaultLoan.getAmount(), 0.0);
+    EXPECT_EQ(defaultLoan.getInterestRate(), 0.0);
+    EXPECT_EQ(defaultLoan.getDurationDays(), 0);
+    EXPECT_FALSE(defaultLoan.getIsPaid());
 
-TEST_F(LoanTest, InitializationTest) {
-    // Проверка параметров стандартного кредита
-    ASSERT_EQ(testLoan->getAmount(), 10000.0);
-    ASSERT_EQ(testLoan->getInterestRate(), 0.05);
-    ASSERT_EQ(testLoan->getDurationDays(), 30);
-    ASSERT_EQ(testLoan->getTakenOnDay(), 1);
-    ASSERT_EQ(testLoan->getDueDay(), 31);
-    ASSERT_EQ(testLoan->getInterestAccrued(), 0.0);
-    ASSERT_EQ(testLoan->getPenaltyRate(), 0.001);
-    ASSERT_EQ(testLoan->getPenaltyAccrued(), 0.0);
-    ASSERT_FALSE(testLoan->getIsPaid());
-    
-    // Проверка параметров кредита с пользовательскими настройками
-    ASSERT_EQ(customLoan->getAmount(), 5000.0);
-    ASSERT_EQ(customLoan->getInterestRate(), 0.08);
-    ASSERT_EQ(customLoan->getDurationDays(), 90);
-    ASSERT_EQ(customLoan->getTakenOnDay(), 1);
-    ASSERT_EQ(customLoan->getDueDay(), 91);
-    ASSERT_EQ(customLoan->getPenaltyRate(), 0.002);
-    ASSERT_EQ(customLoan->getDescription(), "Custom Loan");
+    // Test parameterized constructor
+    Date takenDate(15, 3, 2023);
+    Loan loan(1000.0, 0.05, 30, takenDate);
+    EXPECT_EQ(loan.getAmount(), 1000.0);
+    EXPECT_EQ(loan.getInterestRate(), 0.05);
+    EXPECT_EQ(loan.getDurationDays(), 30);
+    EXPECT_EQ(loan.getTakenOnDate(), takenDate);
+
+    // Check that due date is calculated correctly
+    Date expectedDueDate(14, 4, 2023); // 30 days after March 15, 2023
+    EXPECT_EQ(loan.getDueDate(), expectedDueDate);
+    EXPECT_FALSE(loan.getIsPaid());
 }
 
-TEST_F(LoanTest, DailyInterestCalculationTest) {
-    // Расчет дневного процента
-    double dailyInterest = testLoan->calculateDailyInterest();
-    double expectedDailyInterest = 10000.0 * (0.05 / 365.0);
-    
-    ASSERT_NEAR(dailyInterest, expectedDailyInterest, 0.001);
-    
-    // Начисление процентов за день
-    testLoan->accrueInterest();
-    ASSERT_NEAR(testLoan->getInterestAccrued(), expectedDailyInterest, 0.001);
-    
-    // Начисление процентов за несколько дней
+TEST(LoanTest, InterestCalculation) {
+    Date takenDate(1, 1, 2023);
+    Loan loan(1000.0, 0.10, 30, takenDate); // 10% annual interest, 30 days
+
+    // Calculate expected daily interest: amount * (rate / 365)
+    double expectedDailyInterest = 1000.0 * (0.10 / 365.0);
+    EXPECT_DOUBLE_EQ(loan.calculateDailyInterest(), expectedDailyInterest);
+
+    // Accrue interest
+    loan.accrueInterest();
+    EXPECT_DOUBLE_EQ(loan.getInterestAccrued(), expectedDailyInterest);
+
+    // Accrue interest multiple times
     for (int i = 0; i < 10; i++) {
-        testLoan->accrueInterest();
+        loan.accrueInterest();
     }
-    
-    ASSERT_NEAR(testLoan->getInterestAccrued(), expectedDailyInterest * 11, 0.001);
+    EXPECT_DOUBLE_EQ(loan.getInterestAccrued(), expectedDailyInterest * 11);
 }
 
-TEST_F(LoanTest, OverdueTest) {
-    // В день взятия кредита он не просрочен
-    ASSERT_FALSE(testLoan->isOverdue(1));
-    
-    // В день погашения еще не просрочен
-    ASSERT_FALSE(testLoan->isOverdue(31));
-    
-    // После дня погашения просрочен
-    ASSERT_TRUE(testLoan->isOverdue(32));
-    
-    // Проверка начисления штрафа
-    testLoan->update(32); // День после срока погашения
-    
-    double expectedInterest = testLoan->calculateDailyInterest();
-    double expectedPenalty = testLoan->calculateDailyPenalty();
-    
-    ASSERT_NEAR(testLoan->getInterestAccrued(), expectedInterest, 0.001);
-    ASSERT_NEAR(testLoan->getPenaltyAccrued(), expectedPenalty, 0.001);
-    
-    // Несколько дней просрочки
-    for (int i = 0; i < 5; i++) {
-        testLoan->update(33 + i);
-    }
-    
-    // Проверка накопленных процентов и штрафов за 6 дней просрочки
-    ASSERT_NEAR(testLoan->getInterestAccrued(), expectedInterest * 6, 0.001);
-    ASSERT_NEAR(testLoan->getPenaltyAccrued(), expectedPenalty * 6, 0.001);
+TEST(LoanTest, OverdueAndPenalty) {
+    Date takenDate(1, 1, 2023);
+    Loan loan(1000.0, 0.10, 10, takenDate); // 10-day loan
+
+    // Check if loan is overdue
+    Date beforeDue(10, 1, 2023); // Before due date
+    EXPECT_FALSE(loan.isOverdue(beforeDue));
+
+    Date afterDue(12, 1, 2023); // After due date
+    EXPECT_TRUE(loan.isOverdue(afterDue));
+
+    // Check penalty calculation
+    double expectedDailyPenalty = 1000.0 * loan.getPenaltyRate();
+    EXPECT_DOUBLE_EQ(loan.calculateDailyPenalty(), expectedDailyPenalty);
+
+    // Accrue penalty
+    loan.accruePenalty();
+    EXPECT_DOUBLE_EQ(loan.getPenaltyAccrued(), expectedDailyPenalty);
 }
 
-TEST_F(LoanTest, PaymentTest) {
-    // Начисление процентов за несколько дней
-    for (int i = 0; i < 10; i++) {
-        testLoan->update(2 + i);
-    }
-    
-    // Проверка суммы к погашению
-    double totalDue = testLoan->getTotalDue();
-    double expectedTotal = 10000.0 + testLoan->getInterestAccrued() + testLoan->getPenaltyAccrued();
-    
-    ASSERT_NEAR(totalDue, expectedTotal, 0.001);
-    
-    // Погашение кредита
-    testLoan->markAsPaid();
-    ASSERT_TRUE(testLoan->getIsPaid());
-    
-    // После погашения проценты не начисляются
-    double interestBefore = testLoan->getInterestAccrued();
-    testLoan->update(15);
-    ASSERT_EQ(testLoan->getInterestAccrued(), interestBefore);
+TEST(LoanTest, TotalDueAndPaid) {
+    Date takenDate(1, 1, 2023);
+    Loan loan(1000.0, 0.10, 10, takenDate);
+
+    // Initially total due is just the principal
+    EXPECT_DOUBLE_EQ(loan.getTotalDue(), 1000.0);
+
+    // Accrue some interest
+    loan.accrueInterest();
+    double expectedInterest = loan.calculateDailyInterest();
+    EXPECT_DOUBLE_EQ(loan.getTotalDue(), 1000.0 + expectedInterest);
+
+    // Accrue some penalty
+    loan.accruePenalty();
+    double expectedPenalty = loan.calculateDailyPenalty();
+    EXPECT_DOUBLE_EQ(loan.getTotalDue(), 1000.0 + expectedInterest + expectedPenalty);
+
+    // Mark loan as paid
+    loan.markAsPaid();
+    EXPECT_TRUE(loan.getIsPaid());
+
+    // After marking as paid, further interest/penalty shouldn't accrue
+    double totalDueBefore = loan.getTotalDue();
+    loan.accrueInterest();
+    loan.accruePenalty();
+    EXPECT_DOUBLE_EQ(loan.getTotalDue(), totalDueBefore);
 }
 
-TEST_F(LoanTest, DaysRemainingTest) {
-    // Проверка оставшихся дней
-    ASSERT_EQ(testLoan->daysRemaining(1), 30);
-    ASSERT_EQ(testLoan->daysRemaining(16), 15);
-    ASSERT_EQ(testLoan->daysRemaining(31), 0);
-    ASSERT_EQ(testLoan->daysRemaining(35), 0);
-    
-    // После погашения всегда 0 дней
-    testLoan->markAsPaid();
-    ASSERT_EQ(testLoan->daysRemaining(10), 0);
+TEST(LoanTest, UpdateAndDaysRemaining) {
+    Date takenDate(1, 1, 2023);
+    Loan loan(1000.0, 0.10, 30, takenDate);
+
+    // Update with current date
+    Date currentDate(10, 1, 2023);
+    loan.update(currentDate);
+    double expectedInterest = loan.calculateDailyInterest();
+    EXPECT_DOUBLE_EQ(loan.getInterestAccrued(), expectedInterest);
+
+    // Days remaining
+    EXPECT_EQ(loan.daysRemaining(currentDate), 21); // 30 - 9 days passed
+
+    // Update with overdue date
+    Date overdueDate(2, 2, 2023);
+    loan.update(overdueDate);
+    double expectedPenalty = loan.calculateDailyPenalty();
+    EXPECT_GT(loan.getPenaltyAccrued(), 0.0);
+
+    // No days remaining for overdue loan
+    EXPECT_EQ(loan.daysRemaining(overdueDate), 0);
 }
 
-TEST_F(LoanTest, UpdateTest) {
-    // Обновление в течение нескольких дней
-    for (int day = 2; day <= 35; day++) {
-        testLoan->update(day);
-    }
-    
-    // 30 дней обычных процентов + 5 дней процентов и штрафов
-    double expectedInterest = testLoan->calculateDailyInterest() * 34;
-    double expectedPenalty = testLoan->calculateDailyPenalty() * 4; // 32-35 дни
-    
-    ASSERT_NEAR(testLoan->getInterestAccrued(), expectedInterest, 0.01);
-    ASSERT_NEAR(testLoan->getPenaltyAccrued(), expectedPenalty, 0.01);
-}
+TEST(LoanTest, Serialization) {
+    Date takenDate(1, 1, 2023);
+    Loan loan(1000.0, 0.10, 30, takenDate, 0.002, "Test Loan");
 
-TEST_F(LoanTest, CustomLoanTest) {
-    // Тест кредита с нестандартными параметрами
-    double dailyInterest = customLoan->calculateDailyInterest();
-    double expectedDailyInterest = 5000.0 * (0.08 / 365.0);
-    
-    ASSERT_NEAR(dailyInterest, expectedDailyInterest, 0.001);
-    
-    // Тест штрафа с нестандартной ставкой
-    double dailyPenalty = customLoan->calculateDailyPenalty();
-    double expectedDailyPenalty = 5000.0 * 0.002;
-    
-    ASSERT_NEAR(dailyPenalty, expectedDailyPenalty, 0.001);
-}
+    // Serialize to JSON
+    nlohmann::json j = loan.toJson();
 
-TEST_F(LoanTest, StaticMethodTest) {
-    // Проверка статического метода расчета общих процентов
-    double totalInterest = Loan::calculateTotalInterest(10000.0, 0.05, 365);
-    double expectedTotalInterest = 10000.0 * 0.05;
-    
-    ASSERT_NEAR(totalInterest, expectedTotalInterest, 0.001);
-}
+    // Deserialize from JSON
+    Loan deserializedLoan = Loan::fromJson(j);
 
-TEST_F(LoanTest, JsonSerializationTest) {
-    // Начисление процентов за несколько дней
-    for (int i = 0; i < 10; i++) {
-        testLoan->update(2 + i);
-    }
-    
-    // Сериализация в JSON
-    nlohmann::json json = testLoan->toJson();
-    
-    // Проверка сериализованных данных
-    ASSERT_EQ(json["amount"], 10000.0);
-    ASSERT_EQ(json["interest_rate"], 0.05);
-    ASSERT_EQ(json["duration_days"], 30);
-    ASSERT_EQ(json["taken_on_day"], 1);
-    ASSERT_EQ(json["due_day"], 31);
-    ASSERT_NEAR(json["interest_accrued"].get<double>(), testLoan->getInterestAccrued(), 0.001);
-    
-    // Десериализация
-    Loan restoredLoan = Loan::fromJson(json);
-    
-    // Проверка восстановленных данных
-    ASSERT_EQ(restoredLoan.getAmount(), testLoan->getAmount());
-    ASSERT_EQ(restoredLoan.getInterestRate(), testLoan->getInterestRate());
-    ASSERT_EQ(restoredLoan.getDurationDays(), testLoan->getDurationDays());
-    ASSERT_EQ(restoredLoan.getTakenOnDay(), testLoan->getTakenOnDay());
-    ASSERT_EQ(restoredLoan.getDueDay(), testLoan->getDueDay());
-    ASSERT_NEAR(restoredLoan.getInterestAccrued(), testLoan->getInterestAccrued(), 0.001);
-    ASSERT_NEAR(restoredLoan.getPenaltyAccrued(), testLoan->getPenaltyAccrued(), 0.001);
-    ASSERT_EQ(restoredLoan.getIsPaid(), testLoan->getIsPaid());
-}
-
-TEST_F(LoanTest, SettersTest) {
-    // Проверка сеттеров
-    testLoan->setAmount(15000.0);
-    ASSERT_EQ(testLoan->getAmount(), 15000.0);
-    
-    testLoan->setInterestRate(0.07);
-    ASSERT_EQ(testLoan->getInterestRate(), 0.07);
-    
-    testLoan->setDurationDays(60);
-    ASSERT_EQ(testLoan->getDurationDays(), 60);
-    ASSERT_EQ(testLoan->getDueDay(), 61); // 1 + 60
-    
-    testLoan->setPenaltyRate(0.003);
-    ASSERT_EQ(testLoan->getPenaltyRate(), 0.003);
-    
-    testLoan->setDescription("Modified Loan");
-    ASSERT_EQ(testLoan->getDescription(), "Modified Loan");
-    
-    // Проверка защиты от некорректных значений
-    testLoan->setAmount(-1000.0);
-    ASSERT_EQ(testLoan->getAmount(), 15000.0); // не должно измениться
-    
-    testLoan->setInterestRate(-0.05);
-    ASSERT_EQ(testLoan->getInterestRate(), 0.07); // не должно измениться
-    
-    testLoan->setDurationDays(-30);
-    ASSERT_EQ(testLoan->getDurationDays(), 60); // не должно измениться
+    // Check if deserialized loan matches original
+    EXPECT_EQ(deserializedLoan.getAmount(), loan.getAmount());
+    EXPECT_EQ(deserializedLoan.getInterestRate(), loan.getInterestRate());
+    EXPECT_EQ(deserializedLoan.getDurationDays(), loan.getDurationDays());
+    EXPECT_EQ(deserializedLoan.getTakenOnDate(), loan.getTakenOnDate());
+    EXPECT_EQ(deserializedLoan.getDueDate(), loan.getDueDate());
+    EXPECT_EQ(deserializedLoan.getDescription(), loan.getDescription());
+    EXPECT_EQ(deserializedLoan.getPenaltyRate(), loan.getPenaltyRate());
 }

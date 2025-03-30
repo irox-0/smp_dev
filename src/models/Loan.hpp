@@ -4,6 +4,7 @@
 #include <vector>
 #include <memory>
 #include <nlohmann/json.hpp>
+#include "../utils/Date.hpp"  // Added Date include
 
 namespace StockMarketSimulator {
 
@@ -12,8 +13,8 @@ private:
     double amount;
     double interestRate;
     int durationDays;
-    int takenOnDay;
-    int dueDay;
+    Date takenOnDate;
+    Date dueDate;
     double interestAccrued;
     double penaltyRate;
     double penaltyAccrued;
@@ -22,15 +23,15 @@ private:
 
 public:
     Loan();
-    Loan(double amount, double interestRate, int durationDays, int takenOnDay);
-    Loan(double amount, double interestRate, int durationDays, int takenOnDay,
+    Loan(double amount, double interestRate, int durationDays, const Date& takenOnDate);
+    Loan(double amount, double interestRate, int durationDays, const Date& takenOnDate,
          double penaltyRate, const std::string& description);
 
     double getAmount() const;
     double getInterestRate() const;
     int getDurationDays() const;
-    int getTakenOnDay() const;
-    int getDueDay() const;
+    Date getTakenOnDate() const;
+    Date getDueDate() const;
     double getInterestAccrued() const;
     double getPenaltyRate() const;
     double getPenaltyAccrued() const;
@@ -47,13 +48,13 @@ public:
     double calculateDailyPenalty() const;
     void accrueInterest();
     void accruePenalty();
-    bool isOverdue(int currentDay) const;
+    bool isOverdue(const Date& currentDate) const;
     double getTotalDue() const;
     void markAsPaid();
 
-    void update(int currentDay);
+    void update(const Date& currentDate);
 
-    int daysRemaining(int currentDay) const;
+    int daysRemaining(const Date& currentDate) const;
 
     static double calculateTotalInterest(double amount, double rate, int days);
 

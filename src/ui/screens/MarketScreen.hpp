@@ -3,7 +3,8 @@
 #include "../Screen.hpp"
 #include "../../models/Company.hpp"
 #include "../../ui/widgets/Table.hpp"
-#include "../../core/Market.hpp"
+#include "CompanyScreen.hpp"
+#include "../../services/NewsService.hpp"
 #include <vector>
 #include <memory>
 
@@ -23,6 +24,7 @@ namespace StockMarketSimulator {
         Table companiesTable;
         MarketSortCriteria sortCriteria;
         bool sortAscending;
+        std::weak_ptr<NewsService> newsService;
 
         void updateDisplayedCompanies();
         void updateTableData();
@@ -49,6 +51,13 @@ namespace StockMarketSimulator {
 
         void changeSortCriteria();
         void toggleSortDirection();
+
+        // Added methods for NewsService
+        void setNewsService(std::weak_ptr<NewsService> newsService);
+        std::weak_ptr<NewsService> getNewsService() const;
+
+        // Getter for displayedCompanies (for testing)
+        const std::vector<std::shared_ptr<Company>>& getCompanies() const;
     };
 
 }

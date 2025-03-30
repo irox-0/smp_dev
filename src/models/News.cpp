@@ -9,43 +9,43 @@ News::News()
       title(""),
       content(""),
       impact(0.0),
-      publishDay(0),
+      publishDate(),
       targetSector(Sector::Unknown),
       processed(false)
 {
 }
 
 News::News(NewsType type, const std::string& title, const std::string& content,
-           double impact, int publishDay)
+           double impact, const Date& publishDate)
     : type(type),
       title(title),
       content(content),
       impact(impact),
-      publishDay(publishDay),
+      publishDate(publishDate),
       targetSector(Sector::Unknown),
       processed(false)
 {
 }
 
 News::News(NewsType type, const std::string& title, const std::string& content,
-           double impact, int publishDay, Sector targetSector)
+           double impact, const Date& publishDate, Sector targetSector)
     : type(type),
       title(title),
       content(content),
       impact(impact),
-      publishDay(publishDay),
+      publishDate(publishDate),
       targetSector(targetSector),
       processed(false)
 {
 }
 
 News::News(NewsType type, const std::string& title, const std::string& content,
-           double impact, int publishDay, std::weak_ptr<Company> targetCompany)
+           double impact, const Date& publishDate, std::weak_ptr<Company> targetCompany)
     : type(type),
       title(title),
       content(content),
       impact(impact),
-      publishDay(publishDay),
+      publishDate(publishDate),
       targetSector(Sector::Unknown),
       targetCompany(targetCompany),
       processed(false)
@@ -72,8 +72,8 @@ double News::getImpact() const {
     return impact;
 }
 
-int News::getPublishDay() const {
-    return publishDay;
+Date News::getPublishDate() const {
+    return publishDate;
 }
 
 Sector News::getTargetSector() const {
@@ -104,10 +104,8 @@ void News::setImpact(double impact) {
     this->impact = impact;
 }
 
-void News::setPublishDay(int day) {
-    if (day >= 0) {
-        this->publishDay = day;
-    }
+void News::setPublishDate(const Date& date) {
+    this->publishDate = date;
 }
 
 void News::setTargetSector(Sector sector) {
@@ -157,6 +155,7 @@ bool News::shouldAffectCompany(const std::shared_ptr<Company>& company) const {
 
     return false;
 }
+
 std::string News::newsTypeToString(NewsType type) {
     switch (type) {
         case NewsType::Global: return "Global";
@@ -181,7 +180,7 @@ nlohmann::json News::toJson() const {
     j["title"] = title;
     j["content"] = content;
     j["impact"] = impact;
-    j["publish_day"] = publishDay;
+    j["publish_date"] = publishDate.toJson();
     j["processed"] = processed;
 
     j["target_sector"] = Market::sectorToString(targetSector);
@@ -203,7 +202,16 @@ News News::fromJson(const nlohmann::json& json, const std::vector<std::shared_pt
     news.title = json["title"];
     news.content = json["content"];
     news.impact = json["impact"];
-    news.publishDay = json["publish_day"];
+
+    if (json.contains("publish_date")) {
+        news.publishDate = Date::fromJson(json["publish_date"]);
+    } else if (json.contains("publish_day")) {
+        int publishDay = json["publish_day"];
+        news.publishDate = Date::fromDayNumber(publishDay);
+    } else {
+        news.publishDate = Date();
+    }
+
     news.processed = json["processed"];
 
     news.targetSector = Market::sectorFromString(json["target_sector"]);

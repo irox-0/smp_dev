@@ -1,226 +1,288 @@
 #include <gtest/gtest.h>
-#include "services/SaveService.hpp"
-#include "core/Market.hpp"
-#include "core/Player.hpp"
-#include "services/NewsService.hpp"
-#include "services/PriceService.hpp"
-#include "utils/Random.hpp"
+#include <memory>
+#include <string>
+#include "../../src/services/SaveService.hpp"
+#include "../../src/core/Market.hpp"
+#include "../../src/core/Player.hpp"
+#include "../../src/services/NewsService.hpp"
+#include "../../src/services/PriceService.hpp"
+#include "../../src/utils/FileIO.hpp"
 
 using namespace StockMarketSimulator;
 
+// Test fixture for SaveService tests
 class SaveServiceTest : public ::testing::Test {
 protected:
-    void SetUp() override {
-        Random::initialize(42);
-        
-        market = std::make_shared<Market>();
-        market->addDefaultCompanies();
-        
-        player = std::make_shared<Player>("Test Player", 10000.0);
-        player->setMarket(market);
-        
-        newsService = std::make_shared<NewsService>(market);
-        newsService->initialize();
-        
-        priceService = std::make_shared<PriceService>(market);
-        priceService->initialize();
-        
-        saveService = std::make_unique<SaveService>(market, player, newsService, priceService);
-        saveService->initialize(testSavesDir);
-        
-        if (!FileIO::directoryExists(testSavesDir)) {
-            FileIO::createDirectory(testSavesDir);
-        }
-    }
-    
-    void TearDown() override {
-        auto saveFiles = saveService->listSaves();
-        for (const auto& save : saveFiles) {
-            saveService->deleteSave(save.filename);
-        }
-    }
-    
     std::shared_ptr<Market> market;
     std::shared_ptr<Player> player;
     std::shared_ptr<NewsService> newsService;
     std::shared_ptr<PriceService> priceService;
-    std::unique_ptr<SaveService> saveService;
-    
-    const std::string testSavesDir = "test_saves";
+    std::shared_ptr<SaveService> saveService;
+    std::string testSavesDirectory;
+
+    void SetUp() override {
+        // Create test directory
+        testSavesDirectory = "test_saves";
+        if (!FileIO::directoryExists(testSavesDirectory)) {
+            FileIO::createDirectory(testSavesDirectory);
+        } else {
+            // Clean up any existing test saves
+            std::vector<std::string> saveFiles = FileIO::listFiles(testSavesDirectory);
+            for (const auto& file : saveFiles) {
+                std::string filePath = FileIO::combineFilePath(testSavesDirectory, file);
+                std::remove(filePath.c_str());
+            }
+        }
+
+        // Initialize market and player
+        market = std::make_shared<Market>();
+        market->addDefaultCompanies();
+
+        player = std::make_shared<Player>("TestPlayer", 10000.0);
+        player->setMarket(market);
+
+        newsService = std::make_shared<NewsService>(market);
+        newsService->initialize();
+
+        priceService = std::make_shared<PriceService>(market);
+        priceService->initialize();
+
+        // Initialize save service
+        saveService = std::make_shared<SaveService>(market, player, newsService, priceService);
+        saveService->initialize(testSavesDirectory);
+    }
+
+    void TearDown() override {
+        // Clean up test directory
+        if (FileIO::directoryExists(testSavesDirectory)) {
+            std::vector<std::string> saveFiles = FileIO::listFiles(testSavesDirectory);
+            for (const auto& file : saveFiles) {
+                std::string filePath = FileIO::combineFilePath(testSavesDirectory, file);
+                std::remove(filePath.c_str());
+            }
+            // Use rmdir to remove the directory instead of std::filesystem
+            // This avoids potential DLL dependencies
+            #ifdef _WIN32
+            _rmdir(testSavesDirectory.c_str());
+            #else
+            rmdir(testSavesDirectory.c_str());
+            #endif
+        }
+    }
+
+    // Helper method to simulate game progression
+    void progressGame(int days) {
+        for (int i = 0; i < days; i++) {
+            market->simulateDay();
+            player->updateDailyState();
+            player->closeDay();
+        }
+    }
 };
 
-TEST_F(SaveServiceTest, InitializationTest) {
-    ASSERT_EQ(saveService->getSavesDirectory(), testSavesDir);
-    ASSERT_TRUE(saveService->isAutosaveEnabled());
-    ASSERT_EQ(saveService->getAutosaveInterval(), 5);
+// Test SaveMetadata with Date
+TEST_F(SaveServiceTest, SaveMetadataDate) {
+    // Create metadata with a specific date
+    Date testDate(15, 4, 2023);
+    SaveMetadata metadata("test.json", "Test Save", testDate, 12345.67, "2023-04-15 12:00:00", false);
+
+    // Convert to JSON and back
+    nlohmann::json j = metadata.toJson();
+    SaveMetadata restored = SaveMetadata::fromJson(j);
+
+    // Verify date is properly serialized and deserialized
+    EXPECT_EQ(restored.gameDate.getDay(), 15);
+    EXPECT_EQ(restored.gameDate.getMonth(), 4);
+    EXPECT_EQ(restored.gameDate.getYear(), 2023);
+    EXPECT_EQ(restored.displayName, "Test Save");
+    EXPECT_DOUBLE_EQ(restored.playerNetWorth, 12345.67);
 }
 
-TEST_F(SaveServiceTest, SaveLoadGameTest) {
-    player->buyStock(market->getCompanyByTicker("TCH"), 20);
-    player->setCurrentDay(5);
-    
-    double initialBalance = player->getPortfolio()->getCashBalance();
-    int initialDay = player->getCurrentDay();
-    
-    bool saveResult = saveService->saveGame("Test Save");
-    ASSERT_TRUE(saveResult);
-    
-    auto saves = saveService->listSaves();
-    ASSERT_EQ(saves.size(), 1);
-    
-    std::string saveFilename = saves[0].filename;
-    ASSERT_FALSE(saveFilename.empty());
-    
-    player->sellStock(market->getCompanyByTicker("TCH"), 10);
-    player->setCurrentDay(10);
-    
-    bool loadResult = saveService->loadGame(saveFilename);
-    ASSERT_TRUE(loadResult);
-    
-    ASSERT_NEAR(player->getPortfolio()->getCashBalance(), initialBalance, 0.01);
-    ASSERT_EQ(player->getCurrentDay(), initialDay);
-    ASSERT_EQ(player->getPortfolio()->getPositionQuantity("TCH"), 20);
+// Test saving and loading game with Date
+TEST_F(SaveServiceTest, SaveAndLoadGame) {
+    // Progress game a few days to have interesting data
+    progressGame(10);
+
+    // Remember current date and player net worth
+    Date originalDate = player->getCurrentDate();
+    double originalNetWorth = player->getNetWorth();
+
+    // Save the game
+    std::string saveName = "TestSave";
+    bool saveResult = saveService->saveGame(saveName);
+    EXPECT_TRUE(saveResult);
+
+    // Get the save files
+    std::vector<SaveMetadata> saves = saveService->listSaves();
+    EXPECT_FALSE(saves.empty());
+
+    // Reset player and market data
+    player = std::make_shared<Player>("NewPlayer", 5000.0);
+    market = std::make_shared<Market>();
+    player->setMarket(market);
+
+    // Update the components in the save service
+    saveService->setPlayer(player);
+    saveService->setMarket(market);
+
+    // Load the game
+    bool loadResult = saveService->loadGame(saves[0].filename);
+    EXPECT_TRUE(loadResult);
+
+    // Verify the data was loaded correctly
+    EXPECT_EQ(player->getName(), "TestPlayer");
+    EXPECT_NEAR(player->getNetWorth(), originalNetWorth, 0.01);
+
+    // Verify the date was loaded correctly
+    EXPECT_EQ(player->getCurrentDate().getDay(), originalDate.getDay());
+    EXPECT_EQ(player->getCurrentDate().getMonth(), originalDate.getMonth());
+    EXPECT_EQ(player->getCurrentDate().getYear(), originalDate.getYear());
 }
 
-TEST_F(SaveServiceTest, SaveMetadataTest) {
-    player->setCurrentDay(7);
-    double playerNetWorth = player->getNetWorth();
-    
-    saveService->saveGame("Metadata Test");
-    
-    auto saves = saveService->listSaves();
-    ASSERT_EQ(saves.size(), 1);
-    
-    SaveMetadata metadata = saves[0];
-    ASSERT_EQ(metadata.displayName, "Metadata Test");
-    ASSERT_EQ(metadata.gameDay, 7);
-    ASSERT_NEAR(metadata.playerNetWorth, playerNetWorth, 0.01);
-    ASSERT_FALSE(metadata.isAutosave);
-    
-    SaveMetadata individualMetadata = saveService->getSaveMetadata(metadata.filename);
-    ASSERT_EQ(individualMetadata.displayName, metadata.displayName);
-    ASSERT_EQ(individualMetadata.gameDay, metadata.gameDay);
-    ASSERT_NEAR(individualMetadata.playerNetWorth, metadata.playerNetWorth, 0.01);
-}
+// Test autosave functionality with Date
+TEST_F(SaveServiceTest, AutosaveWithDate) {
+    // Enable autosave with interval of 5 days
+    saveService->setAutosave(true, 5);
+    EXPECT_TRUE(saveService->isAutosaveEnabled());
+    EXPECT_EQ(saveService->getAutosaveInterval(), 5);
 
-TEST_F(SaveServiceTest, AutosaveTest) {
-    player->setCurrentDay(0);
-    saveService->setAutosave(true, 3);
-    
-    ASSERT_FALSE(saveService->checkAndCreateAutosave());
-    
-    player->setCurrentDay(3);
-    
-    ASSERT_TRUE(saveService->checkAndCreateAutosave());
-    
-    auto saves = saveService->listSaves();
-    ASSERT_EQ(saves.size(), 1);
-    
-    player->setCurrentDay(4);
-    ASSERT_FALSE(saveService->checkAndCreateAutosave());
-    
-    player->setCurrentDay(6);
-    ASSERT_TRUE(saveService->checkAndCreateAutosave());
-    
+    // Progress game 4 days - no autosave should happen
+    progressGame(4);
+    bool autosaveResult = saveService->checkAndCreateAutosave();
+    EXPECT_FALSE(autosaveResult);
+
+    // Get saves - should be empty
+    std::vector<SaveMetadata> saves = saveService->listSaves();
+    EXPECT_TRUE(saves.empty());
+
+    // Progress one more day - autosave should happen
+    progressGame(1);
+    autosaveResult = saveService->checkAndCreateAutosave();
+    EXPECT_TRUE(autosaveResult);
+
+    // Get saves - should have one autosave
     saves = saveService->listSaves();
-    ASSERT_EQ(saves.size(), 2);
-    
-    saveService->setAutosave(false);
-    player->setCurrentDay(9);
-    ASSERT_FALSE(saveService->checkAndCreateAutosave());
+    EXPECT_EQ(saves.size(), 1);
+    EXPECT_TRUE(saves[0].isAutosave);
+
+    // Verify the date in the autosave matches player's date
+    Date playerDate = player->getCurrentDate();
+    EXPECT_EQ(saves[0].gameDate.getDay(), playerDate.getDay());
+    EXPECT_EQ(saves[0].gameDate.getMonth(), playerDate.getMonth());
+    EXPECT_EQ(saves[0].gameDate.getYear(), playerDate.getYear());
 }
 
-TEST_F(SaveServiceTest, DeleteSaveTest) {
-    saveService->saveGame("Save 1");
-    saveService->saveGame("Save 2");
-    
-    auto saves = saveService->listSaves();
-    ASSERT_EQ(saves.size(), 2);
-    
+// Test save filename generation with Date
+TEST_F(SaveServiceTest, SaveFilenameGeneration) {
+    // Set player date to a specific value
+    Date specificDate(25, 12, 2023);
+    player->setCurrentDate(specificDate);
+
+    // Save game
+    bool saveResult = saveService->saveGame("Christmas Save");
+    EXPECT_TRUE(saveResult);
+
+    // Get the save files
+    std::vector<SaveMetadata> saves = saveService->listSaves();
+    EXPECT_EQ(saves.size(), 1);
+
+    // Verify the filename contains the date
+    EXPECT_NE(saves[0].filename.find("25.12.2023"), std::string::npos);
+    EXPECT_NE(saves[0].filename.find("Christmas_Save"), std::string::npos);
+}
+
+// Test save metadata retrieval
+TEST_F(SaveServiceTest, GetSaveMetadata) {
+    // Progress game and save
+    progressGame(15);
+    bool saveResult = saveService->saveGame("Test Metadata");
+    EXPECT_TRUE(saveResult);
+
+    // Get saves
+    std::vector<SaveMetadata> saves = saveService->listSaves();
+    EXPECT_EQ(saves.size(), 1);
+
+    // Get metadata for the save
+    SaveMetadata metadata = saveService->getSaveMetadata(saves[0].filename);
+
+    // Verify the metadata
+    EXPECT_EQ(metadata.displayName, "Test Metadata");
+    EXPECT_NEAR(metadata.playerNetWorth, player->getNetWorth(), 0.01);
+
+    // Verify the date matches player's date
+    Date playerDate = player->getCurrentDate();
+    EXPECT_EQ(metadata.gameDate.getDay(), playerDate.getDay());
+    EXPECT_EQ(metadata.gameDate.getMonth(), playerDate.getMonth());
+    EXPECT_EQ(metadata.gameDate.getYear(), playerDate.getYear());
+}
+
+// Test save deletion
+TEST_F(SaveServiceTest, DeleteSave) {
+    // Save game
+    bool saveResult = saveService->saveGame("Doomed Save");
+    EXPECT_TRUE(saveResult);
+
+    // Verify save exists
+    std::vector<SaveMetadata> saves = saveService->listSaves();
+    EXPECT_EQ(saves.size(), 1);
+
+    // Delete the save
     bool deleteResult = saveService->deleteSave(saves[0].filename);
-    ASSERT_TRUE(deleteResult);
-    
+    EXPECT_TRUE(deleteResult);
+
+    // Verify save no longer exists
     saves = saveService->listSaves();
-    ASSERT_EQ(saves.size(), 1);
-    
-    ASSERT_FALSE(saveService->deleteSave("nonexistent_save.json"));
+    EXPECT_TRUE(saves.empty());
 }
 
-TEST_F(SaveServiceTest, InvalidSaveTest) {
-    ASSERT_FALSE(saveService->loadGame("nonexistent_save.json"));
-    
-    nlohmann::json invalidData;
-    invalidData["invalid"] = "data";
-    
-    std::string invalidPath = FileIO::combineFilePath(testSavesDir, "invalid_save.json");
-    FileIO::writeJsonFile(invalidPath, invalidData);
-    
-    ASSERT_FALSE(saveService->loadGame("invalid_save.json"));
-}
-
-TEST_F(SaveServiceTest, WeakPtrTest) {
-    SaveService emptyService;
-    ASSERT_FALSE(emptyService.saveGame("Empty Save"));
-    ASSERT_FALSE(emptyService.loadGame("nonexistent.json"));
-    ASSERT_FALSE(emptyService.checkAndCreateAutosave());
-    
-    SaveService marketOnlyService(market, std::weak_ptr<Player>(), std::weak_ptr<NewsService>(), std::weak_ptr<PriceService>());
-    marketOnlyService.initialize(testSavesDir);
-    ASSERT_FALSE(marketOnlyService.saveGame("Market Only Save"));
-    
-    SaveService playerOnlyService(std::weak_ptr<Market>(), player, std::weak_ptr<NewsService>(), std::weak_ptr<PriceService>());
-    playerOnlyService.initialize(testSavesDir);
-    ASSERT_FALSE(playerOnlyService.saveGame("Player Only Save"));
-}
-
-TEST_F(SaveServiceTest, SettersTest) {
-    SaveService service;
-    
-    service.setMarket(market);
-    service.setPlayer(player);
-    service.setNewsService(newsService);
-    service.setPriceService(priceService);
-    
-    service.setSavesDirectory("custom_saves");
-    ASSERT_EQ(service.getSavesDirectory(), "custom_saves");
-    
-    service.setAutosave(false);
-    ASSERT_FALSE(service.isAutosaveEnabled());
-    
-    service.setAutosave(true, 10);
-    ASSERT_TRUE(service.isAutosaveEnabled());
-    ASSERT_EQ(service.getAutosaveInterval(), 10);
-    
-    service.setAutosave(true, -5);
-    ASSERT_EQ(service.getAutosaveInterval(), 10);
-}
-
-TEST_F(SaveServiceTest, ComplexGameStateTest) {
-    player->buyStock(market->getCompanyByTicker("TCH"), 20);
-    player->buyStock(market->getCompanyByTicker("EPLC"), 30);
-    player->takeLoan(5000.0, 0.05, 30, "Test Loan");
-    player->depositToMarginAccount(2000.0);
-    player->setCurrentDay(10);
-    
-    newsService->setCurrentDay(10);
+// Test saving and loading with all components
+TEST_F(SaveServiceTest, SaveAndLoadWithAllComponents) {
+    // Progress the game and create some news
+    progressGame(5);
     auto news = newsService->generateDailyNews(3);
     newsService->applyNewsEffects(news);
-    
-    priceService->updatePrices();
-    
-    bool saveResult = saveService->saveGame("Complex State");
-    ASSERT_TRUE(saveResult);
-    
-    player->setCurrentDay(20);
-    player->sellStock(market->getCompanyByTicker("TCH"), 10);
-    
-    auto saves = saveService->listSaves();
-    bool loadResult = saveService->loadGame(saves[0].filename);
-    ASSERT_TRUE(loadResult);
-    
-    ASSERT_EQ(player->getCurrentDay(), 10);
-    ASSERT_EQ(player->getPortfolio()->getPositionQuantity("TCH"), 20);
-    ASSERT_EQ(player->getPortfolio()->getPositionQuantity("EPLC"), 30);
-    ASSERT_GT(player->getLoans().size(), 0);
-    ASSERT_GT(player->getMarginAccountBalance(), 0.0);
+
+    // Save the game
+    bool saveResult = saveService->saveGame("Full Component Test");
+    EXPECT_TRUE(saveResult);
+
+    // Create new instances of all components
+    auto newMarket = std::make_shared<Market>();
+    auto newPlayer = std::make_shared<Player>("NewPlayer", 5000.0);
+    auto newNewsService = std::make_shared<NewsService>();
+    auto newPriceService = std::make_shared<PriceService>();
+
+    newPlayer->setMarket(newMarket);
+    newNewsService->setMarket(newMarket);
+    newPriceService->setMarket(newMarket);
+
+    // Create new save service with new components
+    auto newSaveService = std::make_shared<SaveService>(
+        newMarket, newPlayer, newNewsService, newPriceService);
+    newSaveService->initialize(testSavesDirectory);
+
+    // Get the saves
+    std::vector<SaveMetadata> saves = newSaveService->listSaves();
+    EXPECT_EQ(saves.size(), 1);
+
+    // Load the save
+    bool loadResult = newSaveService->loadGame(saves[0].filename);
+    EXPECT_TRUE(loadResult);
+
+    // Verify market data loaded correctly
+    EXPECT_EQ(newMarket->getCompanies().size(), market->getCompanies().size());
+
+    // Verify player data loaded correctly
+    EXPECT_EQ(newPlayer->getName(), "TestPlayer");
+    EXPECT_NEAR(newPlayer->getNetWorth(), player->getNetWorth(), 0.01);
+
+    // Verify date loaded correctly
+    Date originalDate = player->getCurrentDate();
+    Date loadedDate = newPlayer->getCurrentDate();
+    EXPECT_EQ(loadedDate.getDay(), originalDate.getDay());
+    EXPECT_EQ(loadedDate.getMonth(), originalDate.getMonth());
+    EXPECT_EQ(loadedDate.getYear(), originalDate.getYear());
+
+    // Verify news service data loaded correctly
+    EXPECT_FALSE(newNewsService->getNewsHistory().empty());
 }

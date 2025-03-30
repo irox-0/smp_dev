@@ -13,7 +13,7 @@ Player::Player()
       marginInterestRate(0.07),
       marginAvailable(0.0),
       marginRequirement(0.5),
-      currentDay(0)
+      currentDate()
 {
 }
 
@@ -25,7 +25,7 @@ Player::Player(const std::string& name, double initialBalance)
       marginInterestRate(0.07),
       marginAvailable(0.0),
       marginRequirement(0.5),
-      currentDay(0)
+      currentDate()
 {
 }
 
@@ -81,8 +81,13 @@ const std::vector<Loan>& Player::getLoans() const {
     return loans;
 }
 
+Date Player::getCurrentDate() const {
+    return currentDate;
+}
+
 int Player::getCurrentDay() const {
-    return currentDay;
+    Date referenceDate(1, 3, 2023);
+    return currentDate.toDayNumber(referenceDate);
 }
 
 void Player::setName(const std::string& name) {
@@ -93,10 +98,8 @@ void Player::setMarket(std::weak_ptr<Market> market) {
     this->market = market;
 }
 
-void Player::setCurrentDay(int day) {
-    if (day >= 0) {
-        this->currentDay = day;
-    }
+void Player::setCurrentDate(const Date& date) {
+    this->currentDate = date;
 }
 
 void Player::updateMarginAvailable() {
@@ -107,7 +110,7 @@ void Player::updateMarginAvailable() {
     marginAvailable = std::max(0.0, availableMargin);
 }
 
-    bool Player::checkMarginCall() {
+bool Player::checkMarginCall() {
     double portfolioValue = portfolio->getTotalStocksValue();
     double requiredEquity = portfolioValue * marginRequirement;
     double actualEquity = portfolioValue + marginAccountBalance - marginUsed;
@@ -125,6 +128,7 @@ void Player::updateMarginAvailable() {
 
     return isMarginCall;
 }
+
 void Player::accrueMarginInterest() {
     if (marginUsed > 0.0) {
         double dailyInterest = marginUsed * (marginInterestRate / 365.0);
@@ -147,7 +151,7 @@ bool Player::buyStock(std::shared_ptr<Company> company, int quantity, bool useMa
     double totalCost = price * quantity * (1.0 + commission);
 
     if (totalCost <= portfolio->getCashBalance()) {
-        return portfolio->buyStock(company, quantity, price, commission, currentDay);
+        return portfolio->buyStock(company, quantity, price, commission, currentDate);
     }
 
     if (useMargin) {
@@ -163,7 +167,7 @@ bool Player::buyStock(std::shared_ptr<Company> company, int quantity, bool useMa
 
             portfolio->depositCash(marginNeeded);
 
-            bool result = portfolio->buyStock(company, quantity, price, commission, currentDay);
+            bool result = portfolio->buyStock(company, quantity, price, commission, currentDate);
 
             if (!result) {
                 portfolio->withdrawCash(marginNeeded);
@@ -178,6 +182,7 @@ bool Player::buyStock(std::shared_ptr<Company> company, int quantity, bool useMa
 
     return false;
 }
+
 bool Player::sellStock(std::shared_ptr<Company> company, int quantity) {
     if (!company || quantity <= 0) {
         return false;
@@ -193,7 +198,7 @@ bool Player::sellStock(std::shared_ptr<Company> company, int quantity) {
 
     double cashBefore = portfolio->getCashBalance();
 
-    bool result = portfolio->sellStock(company, quantity, price, commission, currentDay);
+    bool result = portfolio->sellStock(company, quantity, price, commission, currentDate);
 
     if (result && marginUsed > 0.0) {
         double cashAfter = portfolio->getCashBalance();
@@ -223,7 +228,7 @@ bool Player::takeLoan(double amount, double interestRate, int durationDays, cons
         return false;
     }
 
-    Loan newLoan(amount, interestRate, durationDays, currentDay, 0.001, description);
+    Loan newLoan(amount, interestRate, durationDays, currentDate, 0.001, description);
     loans.push_back(newLoan);
 
     portfolio->depositCash(amount);
@@ -297,11 +302,11 @@ bool Player::withdrawFromMarginAccount(double amount) {
     if (amount <= 0.0 || amount > marginAccountBalance) {
         return false;
     }
-    
+
     marginAccountBalance -= amount;
     portfolio->depositCash(amount);
     updateMarginAvailable();
-    
+
     return true;
 }
 
@@ -309,10 +314,10 @@ bool Player::adjustMarginRequirement(double newRequirement) {
     if (newRequirement < 0.1 || newRequirement > 1.0) {
         return false;
     }
-    
+
     marginRequirement = newRequirement;
     updateMarginAvailable();
-    
+
     return true;
 }
 
@@ -320,7 +325,7 @@ bool Player::adjustMarginInterestRate(double newRate) {
     if (newRate < 0.01 || newRate > 0.2) {
         return false;
     }
-    
+
     marginInterestRate = newRate;
     return true;
 }
@@ -329,7 +334,7 @@ void Player::receiveDividends(std::shared_ptr<Company> company, double amountPer
     if (!company || amountPerShare <= 0.0) {
         return;
     }
-    
+
     portfolio->receiveDividends(company, amountPerShare);
 }
 
@@ -391,17 +396,18 @@ void Player::updateDailyState() {
 
     updateMarginAvailable();
 }
+
 void Player::processLoans() {
     for (auto& loan : loans) {
         if (!loan.getIsPaid()) {
-            loan.update(currentDay);
+            loan.update(currentDate);
         }
     }
 }
 
 void Player::closeDay() {
-    portfolio->closeDay(currentDay);
-    currentDay++;
+    portfolio->closeDay(currentDate);
+    currentDate.nextDay();
 }
 
 void Player::openDay() {
@@ -410,20 +416,20 @@ void Player::openDay() {
 
 nlohmann::json Player::toJson() const {
     nlohmann::json j;
-    
+
     j["name"] = name;
     j["portfolio"] = portfolio->toJson();
     j["margin_account_balance"] = marginAccountBalance;
     j["margin_used"] = marginUsed;
     j["margin_interest_rate"] = marginInterestRate;
     j["margin_requirement"] = marginRequirement;
-    j["current_day"] = currentDay;
-    
+    j["current_date"] = currentDate.toJson();
+
     j["loans"] = nlohmann::json::array();
     for (const auto& loan : loans) {
         j["loans"].push_back(loan.toJson());
     }
-    
+
     return j;
 }
 
@@ -434,7 +440,16 @@ Player Player::fromJson(const nlohmann::json& json, std::weak_ptr<Market> market
     player.marginUsed = json["margin_used"];
     player.marginInterestRate = json["margin_interest_rate"];
     player.marginRequirement = json["margin_requirement"];
-    player.currentDay = json["current_day"];
+
+    if (json.contains("current_date")) {
+        player.currentDate = Date::fromJson(json["current_date"]);
+    } else if (json.contains("current_day")) {
+        int currentDay = json["current_day"];
+        player.currentDate = Date::fromDayNumber(currentDay);
+    } else {
+        player.currentDate = Date();
+    }
+
     player.market = market;
     
     auto marketPtr = market.lock();

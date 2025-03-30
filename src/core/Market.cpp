@@ -7,7 +7,7 @@
 namespace StockMarketSimulator {
 
 Market::Market()
-    : currentDay(0),
+    : currentDate(1, 3, 2023),
       cycleLength(365),
       currentCycleDay(0),
       marketVolatility(0.01),
@@ -42,8 +42,13 @@ const std::map<Sector, double>& Market::getSectorTrends() const {
     return sectorTrends;
 }
 
+Date Market::getCurrentDate() const {
+    return currentDate;
+}
+
 int Market::getCurrentDay() const {
-    return currentDay;
+    Date referenceDate(1, 3, 2023);
+    return currentDate.toDayNumber(referenceDate) - 1;
 }
 
 double Market::getMarketIndex() const {
@@ -191,10 +196,10 @@ void Market::addDefaultCompanies() {
 
 void Market::simulateDay() {
     for (auto& company : companies) {
-        company->closeTradingDay();
+        company->closeTradingDay(currentDate);
     }
 
-    currentDay++;
+    currentDate.nextDay();
     currentCycleDay = (currentCycleDay + 1) % cycleLength;
 
     calculateMarketTrend();
@@ -211,7 +216,7 @@ void Market::simulateDay() {
     updateSectorTrends();
 
     for (auto& company : companies) {
-        company->openTradingDay();
+        company->openTradingDay(currentDate);
 
         Sector companySector = company->getSector();
         double sectorTrend = sectorTrends[companySector];
@@ -221,7 +226,7 @@ void Market::simulateDay() {
 
 void Market::processCompanyDividends() {
     for (auto& company : companies) {
-        if (company->processDividends(currentDay)) {
+        if (company->processDividends(currentDate)) {
         }
     }
 }
@@ -407,7 +412,7 @@ double Market::generateSectorMovement(Sector sector) {
 nlohmann::json Market::toJson() const {
     nlohmann::json j;
 
-    j["current_day"] = currentDay;
+    j["current_date"] = currentDate.toJson();
     j["cycle_length"] = cycleLength;
     j["current_cycle_day"] = currentCycleDay;
 
@@ -438,7 +443,15 @@ nlohmann::json Market::toJson() const {
 Market Market::fromJson(const nlohmann::json& json) {
     Market market;
 
-    market.currentDay = json["current_day"];
+    if (json.contains("current_date")) {
+        market.currentDate = Date::fromJson(json["current_date"]);
+    } else if (json.contains("current_day")) {
+        int currentDay = json["current_day"];
+        market.currentDate = Date::fromDayNumber(currentDay + 1, Date(1, 3, 2023));
+    } else {
+        market.currentDate = Date(1, 3, 2023);
+    }
+
     market.cycleLength = json["cycle_length"];
     market.currentCycleDay = json["current_cycle_day"];
 

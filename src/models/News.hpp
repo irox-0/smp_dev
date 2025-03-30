@@ -5,6 +5,7 @@
 #include <vector>
 #include <nlohmann/json.hpp>
 #include "Company.hpp"
+#include "../utils/Date.hpp"
 
 namespace StockMarketSimulator {
 
@@ -20,25 +21,25 @@ private:
     std::string title;
     std::string content;
     double impact;
-    int publishDay;
+    Date publishDate;
     Sector targetSector;
     std::weak_ptr<Company> targetCompany;
     bool processed;
 
 public:
     News();
-    News(NewsType type, const std::string& title, const std::string& content, 
-         double impact, int publishDay);
-    News(NewsType type, const std::string& title, const std::string& content, 
-         double impact, int publishDay, Sector targetSector);
-    News(NewsType type, const std::string& title, const std::string& content, 
-         double impact, int publishDay, std::weak_ptr<Company> targetCompany);
+    News(NewsType type, const std::string& title, const std::string& content,
+         double impact, const Date& publishDate);
+    News(NewsType type, const std::string& title, const std::string& content,
+         double impact, const Date& publishDate, Sector targetSector);
+    News(NewsType type, const std::string& title, const std::string& content,
+         double impact, const Date& publishDate, std::weak_ptr<Company> targetCompany);
 
     NewsType getType() const;
     std::string getTitle() const;
     std::string getContent() const;
     double getImpact() const;
-    int getPublishDay() const;
+    Date getPublishDate() const;
     Sector getTargetSector() const;
     std::weak_ptr<Company> getTargetCompany() const;
     bool isProcessed() const;
@@ -47,7 +48,7 @@ public:
     void setTitle(const std::string& title);
     void setContent(const std::string& content);
     void setImpact(double impact);
-    void setPublishDay(int day);
+    void setPublishDate(const Date& date);
     void setTargetSector(Sector sector);
     void setTargetCompany(std::weak_ptr<Company> company);
     void setProcessed(bool processed);

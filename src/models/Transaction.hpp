@@ -5,6 +5,7 @@
 #include <nlohmann/json.hpp>
 #include "Stock.hpp"
 #include "Company.hpp"
+#include "../utils/Date.hpp"
 
 namespace StockMarketSimulator {
 
@@ -22,7 +23,7 @@ private:
     double commissionRate;
     double commissionAmount;
     double totalCost;
-    int transactionDay;
+    Date transactionDate;
     bool executed;
     std::string status;
 
@@ -33,7 +34,7 @@ public:
     Transaction();
     Transaction(TransactionType type, std::weak_ptr<Company> company,
                 int quantity, double pricePerShare, double commissionRate,
-                int transactionDay);
+                const Date& transactionDate);
 
     TransactionType getType() const;
     std::weak_ptr<Company> getCompany() const;
@@ -42,7 +43,7 @@ public:
     double getCommissionRate() const;
     double getCommissionAmount() const;
     double getTotalCost() const;
-    int getTransactionDay() const;
+    Date getTransactionDate() const;
     bool isExecuted() const;
     std::string getStatus() const;
 
@@ -51,7 +52,7 @@ public:
     void setQuantity(int quantity);
     void setPricePerShare(double price);
     void setCommissionRate(double rate);
-    void setTransactionDay(int day);
+    void setTransactionDate(const Date& date);
     void setExecuted(bool executed);
     void setStatus(const std::string& status);
 

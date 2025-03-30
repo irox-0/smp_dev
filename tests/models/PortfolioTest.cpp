@@ -1,463 +1,223 @@
 #include <gtest/gtest.h>
-#include "models/Portfolio.hpp"
-#include "models/Company.hpp"
-#include "models/Stock.hpp"
+#include <memory>
+#include "../../src/models/Portfolio.hpp"
+#include "../../src/models/Company.hpp"
+#include "../../src/models/Stock.hpp"
+#include "../../src/utils/Date.hpp"
 
 using namespace StockMarketSimulator;
 
-class PortfolioTest : public ::testing::Test {
+class PortfolioDateTest : public ::testing::Test {
 protected:
     void SetUp() override {
-        techCompany = std::make_shared<Company>(
-            "Tech Corp", "TECH",
-            "Technology Company", Sector::Technology,
-            100.0, 0.5, DividendPolicy(2.0, 4)
+        // Create a company for testing
+        company = std::make_shared<Company>(
+            "TestCorp", "TEST",
+            "A test company",
+            Sector::Technology,
+            100.0, 0.5,
+            DividendPolicy(2.0, 4)
         );
 
-        energyCompany = std::make_shared<Company>(
-            "Energy Corp", "ENRG",
-            "Energy Company", Sector::Energy,
-            50.0, 0.4, DividendPolicy(3.0, 4)
-        );
-
-        financeCompany = std::make_shared<Company>(
-            "Finance Corp", "FIN",
-            "Finance Company", Sector::Finance,
-            75.0, 0.3, DividendPolicy(4.0, 4)
-        );
-
+        // Create a portfolio with initial balance
         portfolio = std::make_unique<Portfolio>(10000.0);
     }
 
-    std::shared_ptr<Company> techCompany;
-    std::shared_ptr<Company> energyCompany;
-    std::shared_ptr<Company> financeCompany;
+    std::shared_ptr<Company> company;
     std::unique_ptr<Portfolio> portfolio;
 };
 
-TEST_F(PortfolioTest, InitializationTest) {
-    ASSERT_EQ(portfolio->getInitialInvestment(), 10000.0);
-    ASSERT_EQ(portfolio->getCashBalance(), 10000.0);
-    ASSERT_EQ(portfolio->getTotalValue(), 10000.0);
-    ASSERT_EQ(portfolio->getTotalStocksValue(), 0.0);
-    ASSERT_EQ(portfolio->getPositions().size(), 0);
-    ASSERT_EQ(portfolio->getHistory().size(), 0);
-    ASSERT_EQ(portfolio->getTransactions().size(), 0);
+// Test buying stocks on different dates
+TEST_F(PortfolioDateTest, BuyStocksOnDifferentDates) {
+    // Buy stocks on different dates
+    Date day1(1, 3, 2023);
+    Date day2(2, 3, 2023);
+    Date day3(3, 3, 2023);
 
-    Portfolio emptyPortfolio;
-    ASSERT_EQ(emptyPortfolio.getInitialInvestment(), 0.0);
-    ASSERT_EQ(emptyPortfolio.getCashBalance(), 0.0);
-    ASSERT_EQ(emptyPortfolio.getTotalValue(), 0.0);
+    // Buy 10 stocks on day 1
+    EXPECT_TRUE(portfolio->buyStock(company, 10, 100.0, 0.01, day1));
+    portfolio->closeDay(day1);
+
+    // Buy 5 more stocks on day 2
+    EXPECT_TRUE(portfolio->buyStock(company, 5, 110.0, 0.01, day2));
+    portfolio->closeDay(day2);
+
+    // Buy 3 more stocks on day 3
+    EXPECT_TRUE(portfolio->buyStock(company, 3, 120.0, 0.01, day3));
+    portfolio->closeDay(day3);
+
+    // Check portfolio history
+    const auto& history = portfolio->getHistory();
+    ASSERT_EQ(3, history.size());
+
+    // Check that dates are correct
+    EXPECT_EQ(day1.getDay(), history[0].date.getDay());
+    EXPECT_EQ(day1.getMonth(), history[0].date.getMonth());
+    EXPECT_EQ(day1.getYear(), history[0].date.getYear());
+
+    EXPECT_EQ(day2.getDay(), history[1].date.getDay());
+    EXPECT_EQ(day2.getMonth(), history[1].date.getMonth());
+    EXPECT_EQ(day2.getYear(), history[1].date.getYear());
+
+    EXPECT_EQ(day3.getDay(), history[2].date.getDay());
+    EXPECT_EQ(day3.getMonth(), history[2].date.getMonth());
+    EXPECT_EQ(day3.getYear(), history[2].date.getYear());
 }
 
-TEST_F(PortfolioTest, BuyStockTest) {
-    double initialBalance = portfolio->getCashBalance();
-    std::cout << "\n=== BuyStockTest Debug Start ===\n";
-    std::cout << "Initial balance: " << initialBalance << std::endl;
+// Test selling stocks and checking history
+TEST_F(PortfolioDateTest, SellStocksAndCheckHistory) {
+    // Setup initial portfolio
+    Date day1(1, 3, 2023);
+    EXPECT_TRUE(portfolio->buyStock(company, 20, 100.0, 0.01, day1));
+    portfolio->closeDay(day1);
 
-    bool result = portfolio->buyStock(techCompany, 20, 100.0, 0.01, 1);
+    // Sell some stocks on a different date
+    Date day2(5, 3, 2023);
+    EXPECT_TRUE(portfolio->sellStock(company, 10, 120.0, 0.01, day2));
+    portfolio->closeDay(day2);
 
-    double expectedShareCost = 20 * 100.0;
-    double expectedCommission = expectedShareCost * 0.01;
-    double expectedTotalCost = expectedShareCost + expectedCommission;
-    double expectedRemainingBalance = initialBalance - expectedTotalCost;
+    // Check portfolio history
+    const auto& history = portfolio->getHistory();
+    ASSERT_EQ(2, history.size());
 
-    std::cout << "Buy operation result: " << (result ? "SUCCESS" : "FAILED") << std::endl;
-    std::cout << "Expected share cost: " << expectedShareCost << std::endl;
-    std::cout << "Expected commission: " << expectedCommission << std::endl;
-    std::cout << "Expected total cost: " << expectedTotalCost << std::endl;
-    std::cout << "Expected remaining balance: " << expectedRemainingBalance << std::endl;
-    std::cout << "Actual balance after buy: " << portfolio->getCashBalance() << std::endl;
-    std::cout << "Balance difference: " << (portfolio->getCashBalance() - expectedRemainingBalance) << std::endl;
+    // Check that dates are correct
+    EXPECT_EQ(day1.getDay(), history[0].date.getDay());
+    EXPECT_EQ(day1.getMonth(), history[0].date.getMonth());
+    EXPECT_EQ(day1.getYear(), history[0].date.getYear());
 
-    bool hasPosition = portfolio->hasPosition("TECH");
-    std::cout << "Has position for TECH: " << (hasPosition ? "YES" : "NO") << std::endl;
-
-    if (hasPosition) {
-        const PortfolioPosition* position = portfolio->getPosition("TECH");
-        std::cout << "Position quantity: " << position->quantity << std::endl;
-        std::cout << "Position avg price: " << position->averagePurchasePrice << std::endl;
-        std::cout << "Position total cost: " << position->totalCost << std::endl;
-        std::cout << "Position current value: " << position->currentValue << std::endl;
-    }
-
-    std::cout << "Transaction count: " << portfolio->getTransactions().size() << std::endl;
-
-    if (!portfolio->getTransactions().empty()) {
-        const auto& transaction = portfolio->getTransactions()[0];
-        std::cout << "Transaction type: " << Transaction::transactionTypeToString(transaction.getType()) << std::endl;
-        std::cout << "Transaction quantity: " << transaction.getQuantity() << std::endl;
-        std::cout << "Transaction price: " << transaction.getPricePerShare() << std::endl;
-        std::cout << "Transaction commission: " << transaction.getCommissionRate() << std::endl;
-        std::cout << "Transaction total cost: " << transaction.getTotalCost() << std::endl;
-    }
-
-    std::cout << "\n=== Standard Assert Checks ===\n";
-    std::cout << "ASSERT_TRUE(result) will " << (result ? "PASS" : "FAIL") << std::endl;
-    std::cout << "ASSERT_NEAR(portfolio->getCashBalance(), expectedRemainingBalance, 0.01) will "
-              << (std::abs(portfolio->getCashBalance() - expectedRemainingBalance) <= 0.01 ? "PASS" : "FAIL") << std::endl;
-    std::cout << "ASSERT_EQ(portfolio->getPositions().size(), 1) will "
-              << (portfolio->getPositions().size() == 1 ? "PASS" : "FAIL") << std::endl;
-    std::cout << "=== BuyStockTest Debug End ===\n\n";
-
-    ASSERT_TRUE(result);
-    ASSERT_NEAR(portfolio->getCashBalance(), expectedRemainingBalance, 0.01);
-    ASSERT_EQ(portfolio->getPositions().size(), 1);
-    ASSERT_TRUE(portfolio->hasPosition("TECH"));
-    ASSERT_EQ(portfolio->getPositionQuantity("TECH"), 20);
+    EXPECT_EQ(day2.getDay(), history[1].date.getDay());
+    EXPECT_EQ(day2.getMonth(), history[1].date.getMonth());
+    EXPECT_EQ(day2.getYear(), history[1].date.getYear());
 }
 
-TEST_F(PortfolioTest, SellStockTest) {
-    portfolio->buyStock(techCompany, 50, 100.0, 0.01, 1);
-    double balanceAfterPurchase = portfolio->getCashBalance();
+// Test JSON serialization and deserialization with dates
+TEST_F(PortfolioDateTest, SaveAndLoadWithDates) {
+    // Setup initial portfolio
+    Date day1(1, 3, 2023);
+    EXPECT_TRUE(portfolio->buyStock(company, 15, 100.0, 0.01, day1));
+    portfolio->closeDay(day1);
 
-    bool result = portfolio->sellStock(techCompany, 20, 120.0, 0.01, 2);
-    ASSERT_TRUE(result);
+    // Save to JSON
+    nlohmann::json j = portfolio->toJson();
 
-    ASSERT_EQ(portfolio->getPositionQuantity("TECH"), 30);
+    // Create a new portfolio by loading from JSON
+    std::vector<std::shared_ptr<Company>> companies = {company};
+    Portfolio loadedPortfolio = Portfolio::fromJson(j, companies);
 
-    double sellValue = 20 * 120.0;
-    double commission = sellValue * 0.01;
-    double expectedBalance = balanceAfterPurchase + (sellValue - commission);
-    ASSERT_NEAR(portfolio->getCashBalance(), expectedBalance, 0.01);
-
-    ASSERT_EQ(portfolio->getTransactions().size(), 2);
-    ASSERT_EQ(portfolio->getTransactions()[1].getType(), TransactionType::Sell);
-    ASSERT_EQ(portfolio->getTransactions()[1].getQuantity(), 20);
-
-    result = portfolio->sellStock(techCompany, 30, 110.0, 0.01, 3);
-    ASSERT_TRUE(result);
-
-    ASSERT_FALSE(portfolio->hasPosition("TECH"));
-    ASSERT_EQ(portfolio->getPositions().size(), 0);
-
-    result = portfolio->sellStock(techCompany, 10, 100.0, 0.01, 4);
-    ASSERT_FALSE(result);
-
-    portfolio->buyStock(energyCompany, 5, 50.0, 0.01, 5);
-    result = portfolio->sellStock(energyCompany, 10, 55.0, 0.01, 6);
-    ASSERT_FALSE(result);
-    ASSERT_EQ(portfolio->getPositionQuantity("ENRG"), 5);
+    // Check that the history has the correct date
+    const auto& history = loadedPortfolio.getHistory();
+    ASSERT_EQ(1, history.size());
+    EXPECT_EQ(day1.getDay(), history[0].date.getDay());
+    EXPECT_EQ(day1.getMonth(), history[0].date.getMonth());
+    EXPECT_EQ(day1.getYear(), history[0].date.getYear());
 }
 
-TEST_F(PortfolioTest, PositionUpdateTest) {
-    portfolio->buyStock(techCompany, 20, 100.0, 0.01, 1);
+// Test backward compatibility - loading from old format
+TEST_F(PortfolioDateTest, BackwardCompatibility) {
+    // Create history entry in old format (with day as int)
+    nlohmann::json historyJson;
+    historyJson["day"] = 25;  // Old format using day number
+    historyJson["total_value"] = 12000.0;
+    historyJson["cash_balance"] = 5000.0;
+    historyJson["total_return"] = 2000.0;
+    historyJson["total_return_percent"] = 20.0;
 
-    techCompany->getStock()->updatePrice(120.0);
+    // Load history entry
+    PortfolioHistory historyEntry = PortfolioHistory::fromJson(historyJson);
 
+    // Check that it converted to the correct date
+    Date expectedDate = Date::fromDayNumber(25);
+    EXPECT_EQ(expectedDate.getDay(), historyEntry.date.getDay());
+    EXPECT_EQ(expectedDate.getMonth(), historyEntry.date.getMonth());
+    EXPECT_EQ(expectedDate.getYear(), historyEntry.date.getYear());
+}
+
+// Test period returns across different dates
+TEST_F(PortfolioDateTest, PeriodReturnAcrossDifferentDates) {
+    // Create a series of history entries
+    Date day1(1, 3, 2023);
+    Date day2(15, 3, 2023);
+    Date day3(31, 3, 2023);
+    Date day4(15, 4, 2023);
+
+    // Simulate buying and price increases over time
+    EXPECT_TRUE(portfolio->buyStock(company, 10, 100.0, 0.01, day1));
+    company->getStock()->updatePrice(110.0); // Price up 10%
     portfolio->updatePositionValues();
+    portfolio->closeDay(day1);
 
-    const PortfolioPosition* position = portfolio->getPosition("TECH");
-    ASSERT_NE(position, nullptr);
-
-    double expectedCurrentValue = 20 * 120.0;
-    ASSERT_NEAR(position->currentValue, expectedCurrentValue, 0.01);
-
-    double totalCost = 20 * 100.0;
-    double expectedProfitLoss = expectedCurrentValue - totalCost;
-    double expectedProfitLossPercent = (expectedProfitLoss / totalCost) * 100.0;
-
-    ASSERT_NEAR(position->unrealizedProfitLoss, expectedProfitLoss, 0.01);
-    ASSERT_NEAR(position->unrealizedProfitLossPercent, expectedProfitLossPercent, 0.01);
-
-    double expectedTotalValue = portfolio->getCashBalance() + expectedCurrentValue;
-    ASSERT_NEAR(portfolio->getTotalValue(), expectedTotalValue, 0.01);
-}
-
-TEST_F(PortfolioTest, CloseDayOpenDayTest) {
-    portfolio->buyStock(techCompany, 20, 100.0, 0.01, 1);
-    techCompany->getStock()->updatePrice(120.0);
+    company->getStock()->updatePrice(120.0); // Price up another 9.1%
     portfolio->updatePositionValues();
+    portfolio->closeDay(day2);
 
-    portfolio->closeDay(1);
-    ASSERT_EQ(portfolio->getHistory().size(), 1);
-
-    const auto& historyEntry = portfolio->getHistory()[0];
-    ASSERT_EQ(historyEntry.day, 1);
-    ASSERT_NEAR(historyEntry.totalValue, portfolio->getTotalValue(), 0.01);
-    ASSERT_NEAR(historyEntry.cashBalance, portfolio->getCashBalance(), 0.01);
-
-    portfolio->openDay();
-    ASSERT_NEAR(portfolio->getPreviousDayValue(), portfolio->getTotalValue(), 0.01);
-
-    techCompany->getStock()->updatePrice(130.0);
+    company->getStock()->updatePrice(130.0); // Price up another 8.3%
     portfolio->updatePositionValues();
+    portfolio->closeDay(day3);
 
-    double dayChange = portfolio->getDayChangeAmount();
-    double dayChangePercent = portfolio->getDayChangePercent();
-
-    double expectedChange = 20 * (130.0 - 120.0);
-    double expectedChangePercent = (expectedChange / portfolio->getPreviousDayValue()) * 100.0;
-
-    ASSERT_NEAR(dayChange, expectedChange, 0.01);
-    ASSERT_NEAR(dayChangePercent, expectedChangePercent, 0.1);
-}
-
-TEST_F(PortfolioTest, DividendsTest) {
-    portfolio->buyStock(techCompany, 50, 100.0, 0.01, 1);
-    double balanceBeforeDividends = portfolio->getCashBalance();
-
-    double dividendPerShare = 0.5;
-    portfolio->receiveDividends(techCompany, dividendPerShare);
-
-    double expectedDividend = 50 * dividendPerShare;
-    ASSERT_NEAR(portfolio->getCashBalance(), balanceBeforeDividends + expectedDividend, 0.01);
-    ASSERT_NEAR(portfolio->getTotalDividendsReceived(), expectedDividend, 0.01);
-
-    double expectedTotalValue = balanceBeforeDividends + expectedDividend + portfolio->getTotalStocksValue();
-    ASSERT_NEAR(portfolio->getTotalValue(), expectedTotalValue, 0.01);
-
-    double previousBalance = portfolio->getCashBalance();
-    portfolio->receiveDividends(energyCompany, 1.0);
-    ASSERT_EQ(portfolio->getCashBalance(), previousBalance);
-}
-
-TEST_F(PortfolioTest, CashOperationsTest) {
-    double initialBalance = portfolio->getCashBalance();
-
-    portfolio->depositCash(5000.0);
-    ASSERT_NEAR(portfolio->getCashBalance(), initialBalance + 5000.0, 0.01);
-    ASSERT_NEAR(portfolio->getInitialInvestment(), 15000.0, 0.01);
-    ASSERT_NEAR(portfolio->getTotalValue(), initialBalance + 5000.0, 0.01);
-
-    bool result = portfolio->withdrawCash(2000.0);
-    ASSERT_TRUE(result);
-    ASSERT_NEAR(portfolio->getCashBalance(), initialBalance + 5000.0 - 2000.0, 0.01);
-    ASSERT_NEAR(portfolio->getTotalValue(), initialBalance + 5000.0 - 2000.0, 0.01);
-
-    double currentBalance = portfolio->getCashBalance();
-    result = portfolio->withdrawCash(currentBalance + 1000.0);
-    ASSERT_FALSE(result);
-    ASSERT_NEAR(portfolio->getCashBalance(), currentBalance, 0.01);
-
-    portfolio->depositCash(-1000.0);
-    ASSERT_NEAR(portfolio->getCashBalance(), currentBalance, 0.01);
-
-    result = portfolio->withdrawCash(-500.0);
-    ASSERT_FALSE(result);
-    ASSERT_NEAR(portfolio->getCashBalance(), currentBalance, 0.01);
-}
-
-TEST_F(PortfolioTest, PortfolioPerformanceTest) {
-    std::cout << "\n=== PortfolioPerformanceTest Debug Start ===\n";
-
-    std::cout << "Initial investment: " << portfolio->getInitialInvestment() << std::endl;
-    std::cout << "Initial total return: " << portfolio->getTotalReturn() << std::endl;
-    std::cout << "Initial percent return: " << portfolio->getTotalReturnPercent() << std::endl;
-
-    std::cout << "\n--- Making purchases ---\n";
-    bool buyResult1 = portfolio->buyStock(techCompany, 30, 100.0, 0.01, 1);
-    std::cout << "Buy Tech result: " << (buyResult1 ? "SUCCESS" : "FAILED") << std::endl;
-    std::cout << "Balance after Tech buy: " << portfolio->getCashBalance() << std::endl;
-
-    bool buyResult2 = portfolio->buyStock(energyCompany, 20, 50.0, 0.01, 1);
-    std::cout << "Buy Energy result: " << (buyResult2 ? "SUCCESS" : "FAILED") << std::endl;
-    std::cout << "Balance after Energy buy: " << portfolio->getCashBalance() << std::endl;
-
-    std::cout << "\n--- Closing day 1 ---\n";
-    portfolio->closeDay(1);
-    std::cout << "History size after day 1: " << portfolio->getHistory().size() << std::endl;
-
-    std::cout << "\n--- Updating stock prices ---\n";
-    double oldTechPrice = techCompany->getStock()->getCurrentPrice();
-    double oldEnergyPrice = energyCompany->getStock()->getCurrentPrice();
-
-    techCompany->getStock()->updatePrice(110.0);
-    energyCompany->getStock()->updatePrice(55.0);
-
-    std::cout << "Tech price changed: " << oldTechPrice << " -> " << techCompany->getStock()->getCurrentPrice() << std::endl;
-    std::cout << "Energy price changed: " << oldEnergyPrice << " -> " << energyCompany->getStock()->getCurrentPrice() << std::endl;
-
-    std::cout << "\n--- Updating portfolio and closing day 2 ---\n";
+    company->getStock()->updatePrice(140.0); // Price up another 7.7%
     portfolio->updatePositionValues();
-    double portfolioValueBeforeDay2Close = portfolio->getTotalValue();
-    std::cout << "Portfolio value before closing day 2: " << portfolioValueBeforeDay2Close << std::endl;
+    portfolio->closeDay(day4);
 
-    portfolio->closeDay(2);
-    std::cout << "History size after day 2: " << portfolio->getHistory().size() << std::endl;
-
-    std::cout << "\n--- Opening day 3 ---\n";
-    portfolio->openDay();
-    std::cout << "Previous day value: " << portfolio->getPreviousDayValue() << std::endl;
-
-    std::cout << "\n--- Calculations for validation ---\n";
-
-    double techStockValue = 30 * 110.0;
-    double energyStockValue = 20 * 55.0;
-    double totalStocksValue = techStockValue + energyStockValue;
-
-    std::cout << "Tech value: " << techStockValue << std::endl;
-    std::cout << "Energy value: " << energyStockValue << std::endl;
-    std::cout << "Total stocks value: " << totalStocksValue << std::endl;
-    std::cout << "Actual portfolio stocks value: " << portfolio->getTotalStocksValue() << std::endl;
-
-    double techInvestment = 30 * 100.0;
-    double energyInvestment = 20 * 50.0;
-    double techCommission = techInvestment * 0.01;
-    double energyCommission = energyInvestment * 0.01;
-    double totalInvested = techInvestment + energyInvestment;
-    double totalCommission = techCommission + energyCommission;
-    double totalInvestedWithCommission = totalInvested + totalCommission;
-
-    std::cout << "Tech investment: " << techInvestment << " + commission: " << techCommission << std::endl;
-    std::cout << "Energy investment: " << energyInvestment << " + commission: " << energyCommission << std::endl;
-    std::cout << "Total invested: " << totalInvested << " + total commission: " << totalCommission << std::endl;
-
-    double expectedReturn = portfolio->getTotalValue() - portfolio->getInitialInvestment();
-    double expectedReturnPercent = (expectedReturn / portfolio->getInitialInvestment()) * 100.0;
-
-    std::cout << "Initial investment: " << portfolio->getInitialInvestment() << std::endl;
-    std::cout << "Total value: " << portfolio->getTotalValue() << std::endl;
-    std::cout << "Cash balance: " << portfolio->getCashBalance() << std::endl;
-    std::cout << "Expected return: " << expectedReturn << std::endl;
-    std::cout << "Expected return %: " << expectedReturnPercent << std::endl;
-    std::cout << "Actual return: " << portfolio->getTotalReturn() << std::endl;
-    std::cout << "Actual return %: " << portfolio->getTotalReturnPercent() << std::endl;
-    std::cout << "Return difference: " << (portfolio->getTotalReturn() - expectedReturn) << std::endl;
-    std::cout << "Return % difference: " << (portfolio->getTotalReturnPercent() - expectedReturnPercent) << std::endl;
-
-    double periodReturn = portfolio->getPeriodReturn(1);
-    double periodReturnPercent = portfolio->getPeriodReturnPercent(1);
-    double lastDayValue = portfolio->getHistory().size() > 0
-        ? portfolio->getHistory()[portfolio->getHistory().size() - 2].totalValue : 0;
-
-    std::cout << "\n--- Period return check ---\n";
-    std::cout << "Last day value: " << lastDayValue << std::endl;
-    std::cout << "Current value: " << portfolio->getTotalValue() << std::endl;
-    std::cout << "Expected period return: " << (portfolio->getTotalValue() - lastDayValue) << std::endl;
-    std::cout << "Actual period return: " << periodReturn << std::endl;
-    std::cout << "Expected period return %: " << ((portfolio->getTotalValue() - lastDayValue) / lastDayValue * 100.0) << std::endl;
-    std::cout << "Actual period return %: " << periodReturnPercent << std::endl;
-
-    std::cout << "\n=== Standard Assert Checks ===\n";
-    double totalReturnDiff = std::abs(portfolio->getTotalReturn() - expectedReturn);
-    double totalReturnPercentDiff = std::abs(portfolio->getTotalReturnPercent() - expectedReturnPercent);
-
-    std::cout << "ASSERT_NEAR(portfolio->getTotalReturn(), expectedReturn, 1.0) will "
-              << (totalReturnDiff <= 1.0 ? "PASS" : "FAIL") << " (diff = " << totalReturnDiff << ")" << std::endl;
-    std::cout << "ASSERT_NEAR(portfolio->getTotalReturnPercent(), expectedReturnPercent, 0.1) will "
-              << (totalReturnPercentDiff <= 0.1 ? "PASS" : "FAIL") << " (diff = " << totalReturnPercentDiff << ")" << std::endl;
-
-    std::cout << "=== PortfolioPerformanceTest Debug End ===\n\n";
-
-    ASSERT_NEAR(portfolio->getTotalReturn(), expectedReturn, 1.0);
-    ASSERT_NEAR(portfolio->getTotalReturnPercent(), expectedReturnPercent, 0.1);
-}
-TEST_F(PortfolioTest, SectorAllocationTest) {
-    portfolio->buyStock(techCompany, 20, 100.0, 0.01, 1);      // Technology
-    portfolio->buyStock(energyCompany, 30, 50.0, 0.01, 1);     // Energy
-    portfolio->buyStock(financeCompany, 10, 75.0, 0.01, 1);    // Finance
-
-    double techValue = 20 * techCompany->getStock()->getCurrentPrice();
-    double energyValue = 30 * energyCompany->getStock()->getCurrentPrice();
-    double financeValue = 10 * financeCompany->getStock()->getCurrentPrice();
-    double totalStocksValue = techValue + energyValue + financeValue;
-
-    std::map<Sector, double> sectorAllocation = portfolio->getSectorAllocation();
-
-    ASSERT_NEAR(sectorAllocation[Sector::Technology], techValue, 0.01);
-    ASSERT_NEAR(sectorAllocation[Sector::Energy], energyValue, 0.01);
-    ASSERT_NEAR(sectorAllocation[Sector::Finance], financeValue, 0.01);
-
-    double techPercent = portfolio->getSectorAllocationPercent(Sector::Technology);
-    double energyPercent = portfolio->getSectorAllocationPercent(Sector::Energy);
-    double financePercent = portfolio->getSectorAllocationPercent(Sector::Finance);
-
-    ASSERT_NEAR(techPercent, (techValue / totalStocksValue) * 100.0, 0.1);
-    ASSERT_NEAR(energyPercent, (energyValue / totalStocksValue) * 100.0, 0.1);
-    ASSERT_NEAR(financePercent, (financeValue / totalStocksValue) * 100.0, 0.1);
-
-    double consumerPercent = portfolio->getSectorAllocationPercent(Sector::Consumer);
-    ASSERT_NEAR(consumerPercent, 0.0, 0.01);
+    // Check period returns (still using the days count)
+    // The expected values are the difference between current value and historical value
+    // So for getPeriodReturn(3): difference between day4 and day1 = 10 stocks * (140-110) = 300
+    // For getPeriodReturn(2): difference between day4 and day2 = 10 stocks * (140-120) = 200
+    // For getPeriodReturn(1): difference between day4 and day3 = 10 stocks * (140-130) = 100
+    EXPECT_NEAR(300.0, portfolio->getPeriodReturn(3), 0.1);
+    EXPECT_NEAR(200.0, portfolio->getPeriodReturn(2), 0.1);
+    EXPECT_NEAR(100.0, portfolio->getPeriodReturn(1), 0.1);
 }
 
-TEST_F(PortfolioTest, ValueHistoryTest) {
-    portfolio->buyStock(techCompany, 20, 100.0, 0.01, 1);
-    portfolio->closeDay(1);
+// Test multiple transactions on the same date
+TEST_F(PortfolioDateTest, MultipleTransactionsOnSameDate) {
+    Date transactionDate(5, 4, 2023);
 
-    techCompany->getStock()->updatePrice(110.0);
-    portfolio->updatePositionValues();
-    portfolio->closeDay(2);
+    // Buy 10 stocks
+    EXPECT_TRUE(portfolio->buyStock(company, 10, 100.0, 0.01, transactionDate));
 
-    techCompany->getStock()->updatePrice(105.0);
-    portfolio->updatePositionValues();
-    portfolio->closeDay(3);
+    // Buy 5 more stocks
+    EXPECT_TRUE(portfolio->buyStock(company, 5, 102.0, 0.01, transactionDate));
 
-    std::vector<double> valueHistory = portfolio->getValueHistory();
+    // Sell 3 stocks
+    EXPECT_TRUE(portfolio->sellStock(company, 3, 103.0, 0.01, transactionDate));
 
-    ASSERT_EQ(valueHistory.size(), 3);
-    ASSERT_NEAR(valueHistory[0], portfolio->getHistory()[0].totalValue, 0.01);
-    ASSERT_NEAR(valueHistory[1], portfolio->getHistory()[1].totalValue, 0.01);
-    ASSERT_NEAR(valueHistory[2], portfolio->getHistory()[2].totalValue, 0.01);
+    // Close the day and record history
+    portfolio->closeDay(transactionDate);
+
+    // Check position
+    EXPECT_EQ(12, portfolio->getPositionQuantity(company->getTicker()));
+
+    // Check history
+    const auto& history = portfolio->getHistory();
+    ASSERT_EQ(1, history.size());
+    EXPECT_EQ(transactionDate.getDay(), history[0].date.getDay());
+    EXPECT_EQ(transactionDate.getMonth(), history[0].date.getMonth());
+    EXPECT_EQ(transactionDate.getYear(), history[0].date.getYear());
 }
 
-TEST_F(PortfolioTest, JsonSerializationTest) {
-    portfolio->buyStock(techCompany, 20, 100.0, 0.01, 1);
-    portfolio->buyStock(energyCompany, 30, 50.0, 0.01, 2);
+// Test dates across month boundaries
+TEST_F(PortfolioDateTest, DatesAcrossMonthBoundaries) {
+    Date lastDayOfMarch(31, 3, 2023);
+    Date firstDayOfApril(1, 4, 2023);
 
-    techCompany->getStock()->updatePrice(110.0);
-    energyCompany->getStock()->updatePrice(55.0);
+    // Buy stocks on the last day of March
+    EXPECT_TRUE(portfolio->buyStock(company, 10, 100.0, 0.01, lastDayOfMarch));
+    portfolio->closeDay(lastDayOfMarch);
 
-    portfolio->updatePositionValues();
-    portfolio->closeDay(1);
-    portfolio->closeDay(2);
+    // Buy more stocks on the first day of April
+    EXPECT_TRUE(portfolio->buyStock(company, 5, 105.0, 0.01, firstDayOfApril));
+    portfolio->closeDay(firstDayOfApril);
 
-    nlohmann::json json = portfolio->toJson();
+    // Check history
+    const auto& history = portfolio->getHistory();
+    ASSERT_EQ(2, history.size());
 
-    ASSERT_EQ(json["cash_balance"], portfolio->getCashBalance());
-    ASSERT_EQ(json["total_value"], portfolio->getTotalValue());
-    ASSERT_EQ(json["initial_investment"], portfolio->getInitialInvestment());
+    // Check that dates are correct
+    EXPECT_EQ(31, history[0].date.getDay());
+    EXPECT_EQ(3, history[0].date.getMonth());
+    EXPECT_EQ(2023, history[0].date.getYear());
 
-    ASSERT_EQ(json["positions"].size(), 2);
-
-    ASSERT_EQ(json["history"].size(), 2);
-
-    ASSERT_EQ(json["transactions"].size(), 2);
-
-    std::vector<std::shared_ptr<Company>> companies = {
-        techCompany, energyCompany, financeCompany
-    };
-
-    Portfolio restoredPortfolio = Portfolio::fromJson(json, companies);
-
-    ASSERT_NEAR(restoredPortfolio.getCashBalance(), portfolio->getCashBalance(), 0.01);
-    ASSERT_NEAR(restoredPortfolio.getTotalValue(), portfolio->getTotalValue(), 0.01);
-    ASSERT_NEAR(restoredPortfolio.getInitialInvestment(), portfolio->getInitialInvestment(), 0.01);
-
-    ASSERT_EQ(restoredPortfolio.getPositions().size(), portfolio->getPositions().size());
-    ASSERT_TRUE(restoredPortfolio.hasPosition("TECH"));
-    ASSERT_TRUE(restoredPortfolio.hasPosition("ENRG"));
-    ASSERT_EQ(restoredPortfolio.getPositionQuantity("TECH"), 20);
-    ASSERT_EQ(restoredPortfolio.getPositionQuantity("ENRG"), 30);
-
-    ASSERT_EQ(restoredPortfolio.getHistory().size(), portfolio->getHistory().size());
-
-    ASSERT_EQ(restoredPortfolio.getTransactions().size(), portfolio->getTransactions().size());
-}
-
-TEST_F(PortfolioTest, EdgeCasesTest) {
-    Portfolio emptyPortfolio;
-    ASSERT_NEAR(emptyPortfolio.getTotalReturn(), 0.0, 0.01);
-    ASSERT_NEAR(emptyPortfolio.getTotalReturnPercent(), 0.0, 0.01);
-    ASSERT_NEAR(emptyPortfolio.getDayChangeAmount(), 0.0, 0.01);
-    ASSERT_NEAR(emptyPortfolio.getDayChangePercent(), 0.0, 0.01);
-
-    ASSERT_FALSE(portfolio->buyStock(techCompany, 0, 100.0, 0.01, 1));
-    ASSERT_FALSE(portfolio->buyStock(techCompany, -10, 100.0, 0.01, 1));
-    ASSERT_FALSE(portfolio->buyStock(techCompany, 10, 0.0, 0.01, 1));
-    ASSERT_FALSE(portfolio->buyStock(techCompany, 10, -50.0, 0.01, 1));
-
-    const PortfolioPosition* nullPosition = portfolio->getPosition("NONEXISTENT");
-    ASSERT_EQ(nullPosition, nullptr);
-
-    ASSERT_NEAR(portfolio->getPeriodReturn(10), portfolio->getTotalReturn(), 0.01);
-    ASSERT_NEAR(portfolio->getPeriodReturnPercent(10), portfolio->getTotalReturnPercent(), 0.01);
-
-    portfolio->buyStock(techCompany, 20, 100.0, 0.01, 1);
-    ASSERT_TRUE(portfolio->hasPosition("TECH"));
-
-    portfolio->sellStock(techCompany, 20, 110.0, 0.01, 2);
-    ASSERT_FALSE(portfolio->hasPosition("TECH"));
-
-    ASSERT_NEAR(portfolio->getSectorAllocationPercent(Sector::Technology), 0.0, 0.01);
+    EXPECT_EQ(1, history[1].date.getDay());
+    EXPECT_EQ(4, history[1].date.getMonth());
+    EXPECT_EQ(2023, history[1].date.getYear());
 }

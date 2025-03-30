@@ -193,7 +193,6 @@ void MarketScreen::drawNavigationOptions() const {
 
 }
 bool MarketScreen::handleInput(int key) {
-    // Number keys for company selection
     if (key >= '1' && key <= '9') {
         int companyIndex = key - '1';
         if (companyIndex >= 0 && companyIndex < static_cast<int>(displayedCompanies.size())) {
@@ -206,21 +205,33 @@ bool MarketScreen::handleInput(int key) {
         case '0':
         case 27:
             close();
-            return false;
+        return false;
 
         case 's':
         case 'S':
             changeSortCriteria();
-            return true;
+        return true;
 
         case 'd':
         case 'D':
             toggleSortDirection();
-            return true;
+        return true;
 
         default:
             return Screen::handleInput(key);
     }
+}
+
+void MarketScreen::setNewsService(std::weak_ptr<NewsService> newsService) {
+    this->newsService = newsService;
+}
+
+std::weak_ptr<NewsService> MarketScreen::getNewsService() const {
+    return newsService;
+}
+
+const std::vector<std::shared_ptr<Company>>& MarketScreen::getCompanies() const {
+    return displayedCompanies;
 }
 
 void MarketScreen::viewCompanyDetails(int index) {
@@ -228,156 +239,28 @@ void MarketScreen::viewCompanyDetails(int index) {
         return;
     }
 
-    auto company = displayedCompanies[index];
-    auto stock = company->getStock();
-
-    int startY = y + 4;
-    int contentHeight = companiesTable.calculateTableHeight() - 2;
-
-    int currentY = startY + 1;
-
-    int messageY = y + 4;
-    Console::setCursorPosition(x, messageY);
-    Console::setColor(TextColor::Yellow, bodyBg);
-    Console::print("|  Selected company: " + company->getName() + " (" + company->getTicker() + ")");
-    Console::print(std::string(width - company->getName().length() - 25 - company->getTicker().length(), ' ') + "|");
-
-    for (int i = 0; i < height - 7; i++) {
-        Console::setCursorPosition(x, messageY + 2 + i);
-        Console::print("|" + std::string(width - 2, ' ') + "|");
+    auto companyPtr = displayedCompanies[index];
+    if (!companyPtr) {
+        return;
     }
 
-    currentY += 2;
+    auto companyScreen = std::make_shared<CompanyScreen>();
+    companyScreen->setMarket(market);
+    companyScreen->setPlayer(player);
+    companyScreen->setCompany(companyPtr);
 
-    Console::setCursorPosition(x + 2, currentY);
-    Console::setColor(bodyFg, bodyBg);
-    Console::print("Sector: ");
-    Console::setColor(TextColor::Cyan, bodyBg);
-    Console::print(company->getSectorName());
-    currentY += 2;
+    companyScreen->setNewsService(newsService);
 
-    Console::setCursorPosition(x + 2, currentY);
-    Console::setColor(bodyFg, bodyBg);
-    Console::print("Current Price: ");
-    Console::setColor(TextColor::Yellow, bodyBg);
+    companyScreen->setPosition(x, y);
+    companyScreen->setSize(width, height);
 
-    double currentPrice = stock->getCurrentPrice();
-    std::stringstream priceStr;
-    priceStr << std::fixed << std::setprecision(2) << currentPrice << "$";
-    Console::print(priceStr.str());
-    currentY += 2;
+    companyScreen->initialize();
 
-    Console::setCursorPosition(x + 2, currentY);
-    Console::setColor(bodyFg, bodyBg);
-    Console::print("Daily Change: ");
-
-    double changeAmount = stock->getDayChangeAmount();
-    double changePercent = stock->getDayChangePercent();
-
-    std::stringstream changeStr;
-    changeStr << std::fixed << std::setprecision(2);
-
-    if (changeAmount >= 0) {
-        Console::setColor(TextColor::Green, bodyBg);
-        changeStr << "+" << changeAmount << "$ (+" << changePercent << "%)";
-    } else {
-        Console::setColor(TextColor::Red, bodyBg);
-        changeStr << changeAmount << "$ (" << changePercent << "%)";
-    }
-
-    Console::print(changeStr.str());
-    currentY += 2;
-
-    Console::setCursorPosition(x + 2, currentY);
-    Console::setColor(bodyFg, bodyBg);
-    Console::print("52-week Range: ");
-    Console::setColor(TextColor::White, bodyBg);
-
-    std::stringstream rangeStr;
-    rangeStr << std::fixed << std::setprecision(2);
-    rangeStr << stock->getLowestPrice() << "$ - " << stock->getHighestPrice() << "$";
-    Console::print(rangeStr.str());
-    currentY += 2;
-
-    Console::setCursorPosition(x + 2, currentY);
-    Console::setColor(bodyFg, bodyBg);
-    Console::print("Volatility: ");
-
-    double volatility = company->getVolatility();
-    std::string volatilityDesc;
-
-    if (volatility < 0.3) {
-        Console::setColor(TextColor::Green, bodyBg);
-        volatilityDesc = "Low";
-    } else if (volatility < 0.6) {
-        Console::setColor(TextColor::Yellow, bodyBg);
-        volatilityDesc = "Medium";
-    } else {
-        Console::setColor(TextColor::Red, bodyBg);
-        volatilityDesc = "High";
-    }
-
-    Console::print(volatilityDesc);
-    currentY += 2;
-
-    const auto& dividendPolicy = company->getDividendPolicy();
-    Console::setCursorPosition(x + 2, currentY);
-    Console::setColor(bodyFg, bodyBg);
-    Console::print("Dividends: ");
-
-    if (dividendPolicy.annualDividendRate > 0) {
-        std::stringstream divStr;
-        divStr << std::fixed << std::setprecision(2);
-        divStr << dividendPolicy.annualDividendRate << "$ (";
-
-        if (dividendPolicy.paymentFrequency == 4) {
-            divStr << "quarterly";
-        } else if (dividendPolicy.paymentFrequency == 2) {
-            divStr << "semi-annual";
-        } else if (dividendPolicy.paymentFrequency == 1) {
-            divStr << "annual";
-        } else {
-            divStr << dividendPolicy.paymentFrequency << " times per year";
-        }
-
-        divStr << ")";
-        Console::setColor(TextColor::Cyan, bodyBg);
-        Console::print(divStr.str());
-    } else {
-        Console::setColor(TextColor::Red, bodyBg);
-        Console::print("None");
-    }
-    currentY += 2;
-
-    Console::setCursorPosition(x + 2, currentY);
-    Console::setColor(bodyFg, bodyBg);
-    Console::print("Description:");
-    currentY += 1;
-
-    std::string description = company->getDescription();
-    int maxLineWidth = width - 6;
-
-    for (size_t pos = 0; pos < description.length(); pos += maxLineWidth) {
-        std::string line = description.substr(pos, maxLineWidth);
-
-        Console::setCursorPosition(x + 4, currentY);
-        Console::setColor(TextColor::White, bodyBg);
-        Console::print(line);
-        currentY += 1;
-
-        if (currentY >= startY + contentHeight - 2) {
-            break;
-        }
-    }
-
-    Console::setCursorPosition(x + 2, height - 3);
-    Console::setColor(TextColor::Yellow, bodyBg);
-    Console::print("Press any key to return to market view");
-
-    Console::readChar();
+    companyScreen->run();
 
     draw();
 }
+
 MarketSortCriteria MarketScreen::getSortCriteria() const {
     return sortCriteria;
 }

@@ -8,14 +8,14 @@ DividendPolicy::DividendPolicy()
     : annualDividendRate(0.0),
       paymentFrequency(0),
       daysBetweenPayments(0),
-      nextPaymentDay(0)
+      nextPaymentDay()
 {
 }
 
 DividendPolicy::DividendPolicy(double rate, int frequency)
     : annualDividendRate(rate),
       paymentFrequency(frequency),
-      nextPaymentDay(0)
+      nextPaymentDay()
 {
     if (frequency <= 0) {
         daysBetweenPayments = 0;
@@ -24,30 +24,45 @@ DividendPolicy::DividendPolicy(double rate, int frequency)
     }
 }
 
-bool DividendPolicy::shouldPayDividend(int currentDay) const {
+bool DividendPolicy::shouldPayDividend(const Date& currentDate) const {
     if (paymentFrequency <= 0 || annualDividendRate <= 0.0) {
         return false;
     }
-    if (nextPaymentDay == 0) {
+
+    if (nextPaymentDay == Date()) {
         return false;
     }
-    return currentDay >= nextPaymentDay;
+
+    return currentDate >= nextPaymentDay;
+}
+
+// Backward compatibility method
+bool DividendPolicy::shouldPayDividend(int currentDay) const {
+    Date currentDate = Date::fromDayNumber(currentDay);
+    return shouldPayDividend(currentDate);
 }
 
 double DividendPolicy::calculateDividendAmount() const {
     if (paymentFrequency <= 0) {
         return 0.0;
     }
-    
+
     return annualDividendRate / paymentFrequency;
 }
 
-void DividendPolicy::scheduleNextPayment(int currentDay) {
+void DividendPolicy::scheduleNextPayment(const Date& currentDate) {
     if (paymentFrequency <= 0) {
-        nextPaymentDay = 0;
+        nextPaymentDay = Date();
     } else {
-        nextPaymentDay = currentDay + daysBetweenPayments;
+        nextPaymentDay = currentDate;
+        nextPaymentDay.advanceDays(daysBetweenPayments);
     }
+}
+
+// Backward compatibility method
+void DividendPolicy::scheduleNextPayment(int currentDay) {
+    Date currentDate = Date::fromDayNumber(currentDay);
+    scheduleNextPayment(currentDate);
 }
 
 nlohmann::json DividendPolicy::toJson() const {
@@ -55,8 +70,8 @@ nlohmann::json DividendPolicy::toJson() const {
     j["annual_dividend_rate"] = annualDividendRate;
     j["payment_frequency"] = paymentFrequency;
     j["days_between_payments"] = daysBetweenPayments;
-    j["next_payment_day"] = nextPaymentDay;
-    
+    j["next_payment_day"] = nextPaymentDay.toJson();
+
     return j;
 }
 
@@ -65,8 +80,16 @@ DividendPolicy DividendPolicy::fromJson(const nlohmann::json& json) {
     policy.annualDividendRate = json["annual_dividend_rate"];
     policy.paymentFrequency = json["payment_frequency"];
     policy.daysBetweenPayments = json["days_between_payments"];
-    policy.nextPaymentDay = json["next_payment_day"];
-    
+
+    if (json.contains("next_payment_day")) {
+        policy.nextPaymentDay = Date::fromJson(json["next_payment_day"]);
+    } else if (json.contains("next_payment_day_int")) {
+        int nextPaymentDayInt = json["next_payment_day_int"];
+        policy.nextPaymentDay = Date::fromDayNumber(nextPaymentDayInt);
+    } else {
+        policy.nextPaymentDay = Date();
+    }
+
     return policy;
 }
 
@@ -76,7 +99,7 @@ Sector Company::sectorFromString(const std::string& sectorStr) {
     if (sectorStr == "Finance") return Sector::Finance;
     if (sectorStr == "Consumer") return Sector::Consumer;
     if (sectorStr == "Manufacturing") return Sector::Manufacturing;
-    
+
     return Sector::Unknown;
 }
 
@@ -121,7 +144,7 @@ Company::Company(const std::string& name, const std::string& ticker,
       profit(0.0)
 {
     stock = std::make_unique<Stock>(weak_from_this(), initialPrice);
-    
+
     marketCap = initialPrice * 1000000;
 }
 
@@ -157,7 +180,7 @@ Company& Company::operator=(const Company& other) {
         peRatio = other.peRatio;
         revenue = other.revenue;
         profit = other.profit;
-        
+
         if (other.stock) {
             stock = std::make_unique<Stock>(*other.stock);
             stock->getCompany() = weak_from_this();
@@ -251,10 +274,10 @@ void Company::updateStockPrice(double marketTrend, double sectorTrend) {
     if (!stock) {
         return;
     }
-    
+
     double newPrice = stock->generatePriceMovement(volatility, marketTrend, sectorTrend);
     stock->updatePrice(newPrice);
-    
+
     marketCap = stock->getCurrentPrice() * 1000000;
 }
 
@@ -262,15 +285,28 @@ void Company::processNewsImpact(double newsImpact) {
     if (!stock) {
         return;
     }
-    
+
     stock->updatePriceWithNewsImpact(newsImpact);
-    
+
     marketCap = stock->getCurrentPrice() * 1000000;
 }
 
+void Company::closeTradingDay(const Date& currentDate) {
+    if (stock) {
+        stock->closeDay(currentDate);
+    }
+}
+
+// Backward compatibility method
 void Company::closeTradingDay() {
     if (stock) {
         stock->closeDay();
+    }
+}
+
+void Company::openTradingDay(const Date& currentDate) {
+    if (stock) {
+        stock->openDay(currentDate);
     }
 }
 
@@ -280,12 +316,17 @@ void Company::openTradingDay() {
     }
 }
 
-bool Company::processDividends(int currentDay) {
-    if (dividendPolicy.shouldPayDividend(currentDay)) {
-        dividendPolicy.scheduleNextPayment(currentDay);
+bool Company::processDividends(const Date& currentDate) {
+    if (dividendPolicy.shouldPayDividend(currentDate)) {
+        dividendPolicy.scheduleNextPayment(currentDate);
         return true;
     }
     return false;
+}
+
+bool Company::processDividends(int currentDay) {
+    Date currentDate = Date::fromDayNumber(currentDay);
+    return processDividends(currentDate);
 }
 
 double Company::calculateDividendAmount() const {

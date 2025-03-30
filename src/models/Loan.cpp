@@ -7,8 +7,8 @@ Loan::Loan()
     : amount(0.0),
       interestRate(0.0),
       durationDays(0),
-      takenOnDay(0),
-      dueDay(0),
+      takenOnDate(),
+      dueDate(),
       interestAccrued(0.0),
       penaltyRate(0.001),
       penaltyAccrued(0.0),
@@ -17,33 +17,35 @@ Loan::Loan()
 {
 }
 
-Loan::Loan(double amount, double interestRate, int durationDays, int takenOnDay)
+Loan::Loan(double amount, double interestRate, int durationDays, const Date& takenOnDate)
     : amount(amount),
       interestRate(interestRate),
       durationDays(durationDays),
-      takenOnDay(takenOnDay),
+      takenOnDate(takenOnDate),
       interestAccrued(0.0),
       penaltyRate(0.001),
       penaltyAccrued(0.0),
       isPaid(false),
       description("Standard Loan")
 {
-    dueDay = takenOnDay + durationDays;
+    dueDate = takenOnDate;
+    dueDate.advanceDays(durationDays);
 }
 
-Loan::Loan(double amount, double interestRate, int durationDays, int takenOnDay, 
+Loan::Loan(double amount, double interestRate, int durationDays, const Date& takenOnDate,
            double penaltyRate, const std::string& description)
     : amount(amount),
       interestRate(interestRate),
       durationDays(durationDays),
-      takenOnDay(takenOnDay),
+      takenOnDate(takenOnDate),
       interestAccrued(0.0),
       penaltyRate(penaltyRate),
       penaltyAccrued(0.0),
       isPaid(false),
       description(description)
 {
-    dueDay = takenOnDay + durationDays;
+    dueDate = takenOnDate;
+    dueDate.advanceDays(durationDays);
 }
 
 double Loan::getAmount() const {
@@ -58,12 +60,12 @@ int Loan::getDurationDays() const {
     return durationDays;
 }
 
-int Loan::getTakenOnDay() const {
-    return takenOnDay;
+Date Loan::getTakenOnDate() const {
+    return takenOnDate;
 }
 
-int Loan::getDueDay() const {
-    return dueDay;
+Date Loan::getDueDate() const {
+    return dueDate;
 }
 
 double Loan::getInterestAccrued() const {
@@ -101,7 +103,8 @@ void Loan::setInterestRate(double rate) {
 void Loan::setDurationDays(int days) {
     if (days > 0) {
         this->durationDays = days;
-        this->dueDay = this->takenOnDay + days;
+        this->dueDate = this->takenOnDate;
+        this->dueDate.advanceDays(days);
     }
 }
 
@@ -141,8 +144,8 @@ void Loan::accruePenalty() {
     }
 }
 
-bool Loan::isOverdue(int currentDay) const {
-    return !isPaid && currentDay > dueDay;
+bool Loan::isOverdue(const Date& currentDate) const {
+    return !isPaid && currentDate > dueDate;
 }
 
 double Loan::getTotalDue() const {
@@ -153,23 +156,23 @@ void Loan::markAsPaid() {
     isPaid = true;
 }
 
-void Loan::update(int currentDay) {
+void Loan::update(const Date& currentDate) {
     if (isPaid) {
         return;
     }
-    
+
     accrueInterest();
-    
-    if (isOverdue(currentDay)) {
+
+    if (isOverdue(currentDate)) {
         accruePenalty();
     }
 }
 
-int Loan::daysRemaining(int currentDay) const {
-    if (isPaid || currentDay >= dueDay) {
+int Loan::daysRemaining(const Date& currentDate) const {
+    if (isPaid || currentDate >= dueDate) {
         return 0;
     }
-    return dueDay - currentDay;
+    return currentDate.daysBetween(dueDate);
 }
 
 double Loan::calculateTotalInterest(double amount, double rate, int days) {
@@ -178,29 +181,45 @@ double Loan::calculateTotalInterest(double amount, double rate, int days) {
 
 nlohmann::json Loan::toJson() const {
     nlohmann::json j;
-    
+
     j["amount"] = amount;
     j["interest_rate"] = interestRate;
     j["duration_days"] = durationDays;
-    j["taken_on_day"] = takenOnDay;
-    j["due_day"] = dueDay;
+    j["taken_on_date"] = takenOnDate.toJson();
+    j["due_date"] = dueDate.toJson();
     j["interest_accrued"] = interestAccrued;
     j["penalty_rate"] = penaltyRate;
     j["penalty_accrued"] = penaltyAccrued;
     j["is_paid"] = isPaid;
     j["description"] = description;
-    
+
     return j;
 }
 
 Loan Loan::fromJson(const nlohmann::json& json) {
     Loan loan;
-    
+
     loan.amount = json["amount"];
     loan.interestRate = json["interest_rate"];
     loan.durationDays = json["duration_days"];
-    loan.takenOnDay = json["taken_on_day"];
-    loan.dueDay = json["due_day"];
+
+    if (json.contains("taken_on_date")) {
+        loan.takenOnDate = Date::fromJson(json["taken_on_date"]);
+    } else if (json.contains("taken_on_day")) {
+        int takenOnDay = json["taken_on_day"];
+        loan.takenOnDate = Date::fromDayNumber(takenOnDay);
+    }
+
+    if (json.contains("due_date")) {
+        loan.dueDate = Date::fromJson(json["due_date"]);
+    } else if (json.contains("due_day")) {
+        int dueDay = json["due_day"];
+        loan.dueDate = Date::fromDayNumber(dueDay);
+    } else {
+        loan.dueDate = loan.takenOnDate;
+        loan.dueDate.advanceDays(loan.durationDays);
+    }
+
     loan.interestAccrued = json["interest_accrued"];
     loan.penaltyRate = json["penalty_rate"];
     loan.penaltyAccrued = json["penalty_accrued"];

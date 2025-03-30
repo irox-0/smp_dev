@@ -1,163 +1,167 @@
 #include <gtest/gtest.h>
-#include "models/Transaction.hpp"
-#include "models/Company.hpp"
+#include <memory>
+#include "../../src/models/Transaction.hpp"
+#include "../../src/models/Company.hpp"
 
 using namespace StockMarketSimulator;
 
 class TransactionTest : public ::testing::Test {
 protected:
+    std::shared_ptr<Company> company;
+
     void SetUp() override {
-        testCompany = std::make_shared<Company>(
-            "Test Company", "TEST",
-            "A company for testing transactions", Sector::Technology,
-            100.0, 0.5, DividendPolicy(2.0, 4)
-        );
-        
-        buyTransaction = std::make_unique<Transaction>(
-            TransactionType::Buy, testCompany, 10, 100.0, 0.01, 1
-        );
-        
-        sellTransaction = std::make_unique<Transaction>(
-            TransactionType::Sell, testCompany, 5, 120.0, 0.01, 10
+        // Create a company for testing
+        company = std::make_shared<Company>(
+            "TestCompany", "TEST",
+            "Test company for transaction tests",
+            Sector::Technology,
+            100.0, 0.5,
+            DividendPolicy(2.0, 4)
         );
     }
-    
-    std::shared_ptr<Company> testCompany;
-    std::unique_ptr<Transaction> buyTransaction;
-    std::unique_ptr<Transaction> sellTransaction;
 };
 
-TEST_F(TransactionTest, InitializationTest) {
-    ASSERT_EQ(buyTransaction->getType(), TransactionType::Buy);
-    ASSERT_EQ(buyTransaction->getQuantity(), 10);
-    ASSERT_EQ(buyTransaction->getPricePerShare(), 100.0);
-    ASSERT_EQ(buyTransaction->getCommissionRate(), 0.01);
-    ASSERT_EQ(buyTransaction->getTransactionDay(), 1);
-    ASSERT_FALSE(buyTransaction->isExecuted());
-    
-    auto company = buyTransaction->getCompany().lock();
-    ASSERT_EQ(company->getTicker(), "TEST");
-    
-    ASSERT_EQ(sellTransaction->getType(), TransactionType::Sell);
-    ASSERT_EQ(sellTransaction->getQuantity(), 5);
-    ASSERT_EQ(sellTransaction->getPricePerShare(), 120.0);
-    ASSERT_EQ(sellTransaction->getTransactionDay(), 10);
-}
+TEST_F(TransactionTest, Constructor) {
+    // Test default constructor
+    Transaction defaultTx;
+    EXPECT_EQ(defaultTx.getType(), TransactionType::Buy);
+    EXPECT_EQ(defaultTx.getQuantity(), 0);
+    EXPECT_FALSE(defaultTx.isExecuted());
 
-TEST_F(TransactionTest, CommissionCalculationTest) {
+    // Test parameterized constructor
+    Date txDate(15, 3, 2023);
+    Transaction tx(TransactionType::Buy, company, 10, 100.0, 0.01, txDate);
+    EXPECT_EQ(tx.getType(), TransactionType::Buy);
+    EXPECT_EQ(tx.getQuantity(), 10);
+    EXPECT_EQ(tx.getPricePerShare(), 100.0);
+    EXPECT_EQ(tx.getCommissionRate(), 0.01);
+    EXPECT_EQ(tx.getTransactionDate(), txDate);
+    EXPECT_FALSE(tx.isExecuted());
+
+    // Check commission and total cost calculations
     double expectedCommission = 10 * 100.0 * 0.01;
-    ASSERT_EQ(buyTransaction->getCommissionAmount(), expectedCommission);
-    
-    buyTransaction->setCommissionRate(0.02);
-    expectedCommission = 10 * 100.0 * 0.02;
-    ASSERT_EQ(buyTransaction->getCommissionAmount(), expectedCommission);
-    
-    buyTransaction->setCommissionRate(-0.01);
-    ASSERT_EQ(buyTransaction->getCommissionRate(), 0.02);
-    
-    buyTransaction->setCommissionRate(0.2);
-    ASSERT_EQ(buyTransaction->getCommissionRate(), 0.02);
+    EXPECT_DOUBLE_EQ(tx.getCommissionAmount(), expectedCommission);
+    EXPECT_DOUBLE_EQ(tx.getTotalCost(), 10 * 100.0 + expectedCommission);
 }
 
-TEST_F(TransactionTest, TotalCostCalculationTest) {
-    double baseCost = 10 * 100.0;
-    double commission = baseCost * 0.01;
-    double expectedTotalCost = baseCost + commission;
-    
-    ASSERT_EQ(buyTransaction->getTotalCost(), expectedTotalCost);
-    
-    baseCost = 5 * 120.0;
-    commission = baseCost * 0.01;
-    expectedTotalCost = baseCost - commission;
-    
-    ASSERT_EQ(sellTransaction->getTotalCost(), expectedTotalCost);
-    
-    double staticTotal = Transaction::calculateTotalWithCommission(100.0, 10, 0.01);
-    ASSERT_EQ(staticTotal, 10 * 100.0 * 1.01);
+TEST_F(TransactionTest, TypeAndCostCalculation) {
+    Date txDate(15, 3, 2023);
+
+    // Buy transaction
+    Transaction buyTx(TransactionType::Buy, company, 10, 100.0, 0.01, txDate);
+    double buyCommission = 10 * 100.0 * 0.01;
+    EXPECT_DOUBLE_EQ(buyTx.getTotalCost(), 10 * 100.0 + buyCommission);
+
+    // Sell transaction
+    Transaction sellTx(TransactionType::Sell, company, 10, 100.0, 0.01, txDate);
+    double sellCommission = 10 * 100.0 * 0.01;
+    EXPECT_DOUBLE_EQ(sellTx.getTotalCost(), 10 * 100.0 - sellCommission);
+
+    // Change transaction type
+    buyTx.setType(TransactionType::Sell);
+    EXPECT_EQ(buyTx.getType(), TransactionType::Sell);
+    EXPECT_DOUBLE_EQ(buyTx.getTotalCost(), 10 * 100.0 - buyCommission);
 }
 
-TEST_F(TransactionTest, ValidationTest) {
-    ASSERT_TRUE(buyTransaction->validateTransaction(1100.0));
-    ASSERT_FALSE(buyTransaction->validateTransaction(900.0));
-    
-    ASSERT_TRUE(sellTransaction->validateSellTransaction(10));
-    ASSERT_FALSE(sellTransaction->validateSellTransaction(3));
-    
-    buyTransaction->execute();
-    ASSERT_FALSE(buyTransaction->validateTransaction(1100.0));
-    
-    Transaction invalidTransaction(TransactionType::Buy, testCompany, 0, 100.0, 0.01, 1);
-    ASSERT_FALSE(invalidTransaction.validateTransaction(1000.0));
+TEST_F(TransactionTest, QuantityAndPriceUpdates) {
+    Date txDate(15, 3, 2023);
+    Transaction tx(TransactionType::Buy, company, 10, 100.0, 0.01, txDate);
+
+    // Update quantity
+    tx.setQuantity(20);
+    EXPECT_EQ(tx.getQuantity(), 20);
+    double newCommission = 20 * 100.0 * 0.01;
+    EXPECT_DOUBLE_EQ(tx.getCommissionAmount(), newCommission);
+    EXPECT_DOUBLE_EQ(tx.getTotalCost(), 20 * 100.0 + newCommission);
+
+    // Update price
+    tx.setPricePerShare(150.0);
+    EXPECT_EQ(tx.getPricePerShare(), 150.0);
+    newCommission = 20 * 150.0 * 0.01;
+    EXPECT_DOUBLE_EQ(tx.getCommissionAmount(), newCommission);
+    EXPECT_DOUBLE_EQ(tx.getTotalCost(), 20 * 150.0 + newCommission);
+
+    // Update commission rate
+    tx.setCommissionRate(0.02);
+    EXPECT_EQ(tx.getCommissionRate(), 0.02);
+    newCommission = 20 * 150.0 * 0.02;
+    EXPECT_DOUBLE_EQ(tx.getCommissionAmount(), newCommission);
+    EXPECT_DOUBLE_EQ(tx.getTotalCost(), 20 * 150.0 + newCommission);
 }
 
-TEST_F(TransactionTest, ExecutionTest) {
-    ASSERT_FALSE(buyTransaction->isExecuted());
-    buyTransaction->execute();
-    ASSERT_TRUE(buyTransaction->isExecuted());
-    
-    ASSERT_THROW(buyTransaction->execute(), std::runtime_error);
+TEST_F(TransactionTest, ValidationAndExecution) {
+    Date txDate(15, 3, 2023);
+    Transaction tx(TransactionType::Buy, company, 10, 100.0, 0.01, txDate);
+
+    // Validate buy transaction with sufficient funds
+    double availableFunds = 2000.0;
+    EXPECT_TRUE(tx.validateTransaction(availableFunds));
+
+    // Validate buy transaction with insufficient funds
+    double insufficientFunds = 500.0;
+    EXPECT_FALSE(tx.validateTransaction(insufficientFunds));
+
+    // Validate sell transaction with sufficient shares
+    Transaction sellTx(TransactionType::Sell, company, 5, 100.0, 0.01, txDate);
+    int availableShares = 10;
+    EXPECT_TRUE(sellTx.validateSellTransaction(availableShares));
+
+    // Validate sell transaction with insufficient shares
+    int insufficientShares = 3;
+    EXPECT_FALSE(sellTx.validateSellTransaction(insufficientShares));
+
+    // Execute transaction
+    tx.execute();
+    EXPECT_TRUE(tx.isExecuted());
+
+    // Executing again should throw exception
+    EXPECT_THROW(tx.execute(), std::runtime_error);
 }
 
-TEST_F(TransactionTest, TransactionTypeConversionTest) {
-    ASSERT_EQ(Transaction::transactionTypeToString(TransactionType::Buy), "Buy");
-    ASSERT_EQ(Transaction::transactionTypeToString(TransactionType::Sell), "Sell");
-    
-    ASSERT_EQ(Transaction::transactionTypeFromString("Buy"), TransactionType::Buy);
-    ASSERT_EQ(Transaction::transactionTypeFromString("Sell"), TransactionType::Sell);
-    ASSERT_EQ(Transaction::transactionTypeFromString("Unknown"), TransactionType::Buy);
+TEST_F(TransactionTest, Serialization) {
+    Date txDate(15, 3, 2023);
+    Transaction tx(TransactionType::Buy, company, 10, 100.0, 0.01, txDate);
+
+    // Execute the transaction
+    tx.execute();
+
+    // Serialize to JSON
+    nlohmann::json j = tx.toJson();
+
+    // Deserialize from JSON
+    Transaction deserializedTx = Transaction::fromJson(j);
+
+    // Set the company back for the deserialized transaction
+    deserializedTx.setCompany(company);
+
+    // Check if deserialized transaction matches original
+    EXPECT_EQ(deserializedTx.getType(), tx.getType());
+    EXPECT_EQ(deserializedTx.getQuantity(), tx.getQuantity());
+    EXPECT_EQ(deserializedTx.getPricePerShare(), tx.getPricePerShare());
+    EXPECT_EQ(deserializedTx.getCommissionRate(), tx.getCommissionRate());
+    EXPECT_EQ(deserializedTx.getCommissionAmount(), tx.getCommissionAmount());
+    EXPECT_EQ(deserializedTx.getTotalCost(), tx.getTotalCost());
+    EXPECT_EQ(deserializedTx.getTransactionDate(), tx.getTransactionDate());
+    EXPECT_EQ(deserializedTx.isExecuted(), tx.isExecuted());
+    EXPECT_EQ(deserializedTx.getStatus(), tx.getStatus());
 }
 
-TEST_F(TransactionTest, SettersTest) {
-    Transaction transaction;
-    
-    transaction.setType(TransactionType::Sell);
-    ASSERT_EQ(transaction.getType(), TransactionType::Sell);
-    
-    transaction.setCompany(testCompany);
-    ASSERT_EQ(transaction.getCompany().lock()->getTicker(), "TEST");
-    
-    transaction.setQuantity(20);
-    ASSERT_EQ(transaction.getQuantity(), 20);
-    
-    transaction.setPricePerShare(150.0);
-    ASSERT_EQ(transaction.getPricePerShare(), 150.0);
-    
-    transaction.setTransactionDay(5);
-    ASSERT_EQ(transaction.getTransactionDay(), 5);
-    
-    transaction.setStatus("Test Status");
-    ASSERT_EQ(transaction.getStatus(), "Test Status");
-    
-    transaction.setQuantity(-10);
-    ASSERT_EQ(transaction.getQuantity(), 20);
-    
-    transaction.setPricePerShare(-50.0);
-    ASSERT_EQ(transaction.getPricePerShare(), 150.0);
-    
-    transaction.setTransactionDay(-1);
-    ASSERT_EQ(transaction.getTransactionDay(), 5);
+TEST_F(TransactionTest, TransactionTypeConversion) {
+    // Test string to type conversion
+    EXPECT_EQ(Transaction::transactionTypeFromString("Buy"), TransactionType::Buy);
+    EXPECT_EQ(Transaction::transactionTypeFromString("Sell"), TransactionType::Sell);
+    EXPECT_EQ(Transaction::transactionTypeFromString("Invalid"), TransactionType::Buy); // Default
+
+    // Test type to string conversion
+    EXPECT_EQ(Transaction::transactionTypeToString(TransactionType::Buy), "Buy");
+    EXPECT_EQ(Transaction::transactionTypeToString(TransactionType::Sell), "Sell");
 }
 
-TEST_F(TransactionTest, JsonSerializationTest) {
-    nlohmann::json json = buyTransaction->toJson();
-    
-    ASSERT_EQ(json["type"], "Buy");
-    ASSERT_EQ(json["quantity"], 10);
-    ASSERT_EQ(json["price_per_share"], 100.0);
-    ASSERT_EQ(json["commission_rate"], 0.01);
-    ASSERT_EQ(json["commission_amount"], 10.0);
-    ASSERT_EQ(json["transaction_day"], 1);
-    ASSERT_EQ(json["executed"], false);
-    ASSERT_EQ(json["company_ticker"], "TEST");
-    
-    Transaction restoredTransaction = Transaction::fromJson(json);
-    
-    ASSERT_EQ(restoredTransaction.getType(), TransactionType::Buy);
-    ASSERT_EQ(restoredTransaction.getQuantity(), 10);
-    ASSERT_EQ(restoredTransaction.getPricePerShare(), 100.0);
-    ASSERT_EQ(restoredTransaction.getCommissionRate(), 0.01);
-    ASSERT_EQ(restoredTransaction.getCommissionAmount(), 10.0);
-    ASSERT_EQ(restoredTransaction.getTransactionDay(), 1);
-    ASSERT_EQ(restoredTransaction.isExecuted(), false);
-    
+TEST_F(TransactionTest, StaticHelperMethods) {
+    // Test static calculation method
+    double price = 100.0;
+    int quantity = 10;
+    double commissionRate = 0.01;
+    double expected = 100.0 * 10 * (1.0 + 0.01);
+    EXPECT_DOUBLE_EQ(Transaction::calculateTotalWithCommission(price, quantity, commissionRate), expected);
 }

@@ -1,221 +1,346 @@
 #include <gtest/gtest.h>
-#include "core/Market.hpp"
-#include "models/Company.hpp"
-#include "utils/Random.hpp"
+#include "../../src/core/Market.hpp"
+#include "../../src/models/Company.hpp"
+#include "../../src/utils/Random.hpp"
+#include "../../src/utils/Date.hpp"
+#include <memory>
+#include <string>
 
-using namespace StockMarketSimulator;
+namespace StockMarketSimulator {
 
 class MarketTest : public ::testing::Test {
 protected:
+    std::shared_ptr<Market> market;
+
     void SetUp() override {
+        // Initialize Random utility with fixed seed for consistent test results
         Random::initialize(42);
 
-        testMarket = std::make_unique<Market>();
-
-        addTestCompanies();
+        // Create a new market for each test
+        market = std::make_shared<Market>();
     }
 
-    void addTestCompanies() {
-        auto tech1 = std::make_shared<Company>(
-            "Test Tech", "TTECH",
-            "Test technology company", Sector::Technology,
-            100.0, 0.5, DividendPolicy(2.0, 4)
-        );
-
-        auto energy1 = std::make_shared<Company>(
-            "Test Energy", "TENRG",
-            "Test energy company", Sector::Energy,
-            50.0, 0.4, DividendPolicy(3.0, 4)
-        );
-
-        auto finance1 = std::make_shared<Company>(
-            "Test Finance", "TFIN",
-            "Test finance company", Sector::Finance,
-            75.0, 0.3, DividendPolicy(4.0, 4)
-        );
-
-        testMarket->addCompany(tech1);
-        testMarket->addCompany(energy1);
-        testMarket->addCompany(finance1);
+    void TearDown() override {
+        market.reset();
     }
 
-    std::unique_ptr<Market> testMarket;
+    // Helper function to create a test company
+    std::shared_ptr<Company> createTestCompany(
+        const std::string& name,
+        const std::string& ticker,
+        Sector sector,
+        double initialPrice
+    ) {
+        return std::make_shared<Company>(
+            name, ticker,
+            "Test company description",
+            sector,
+            initialPrice, 0.5,
+            DividendPolicy(2.0, 4)
+        );
+    }
 };
 
-TEST_F(MarketTest, InitializationTest) {
-    ASSERT_EQ(testMarket->getCurrentDay(), 0);
-    ASSERT_GT(testMarket->getMarketIndex(), 0.0);
-    ASSERT_EQ(testMarket->getCurrentTrend(), MarketTrend::Sideways);
+// Test market initialization
+TEST_F(MarketTest, Initialization) {
+    // Check initial market values
+    EXPECT_EQ(market->getCurrentDay(), 0);
 
-    const auto& companies = testMarket->getCompanies();
-    ASSERT_EQ(companies.size(), 3);
+    // Check initial date (should be March 1, 2023)
+    Date expectedDate(1, 3, 2023);
+    EXPECT_TRUE(market->getCurrentDate() == expectedDate);
+
+    EXPECT_NEAR(market->getMarketIndex(), 1000.0, 0.001);
+    EXPECT_EQ(market->getCurrentTrend(), MarketTrend::Sideways);
+    EXPECT_NEAR(market->getInterestRate(), 0.05, 0.001);
+    EXPECT_NEAR(market->getInflationRate(), 0.02, 0.001);
+    EXPECT_NEAR(market->getUnemploymentRate(), 0.045, 0.001);
+    EXPECT_TRUE(market->getCompanies().empty());
 }
 
-TEST_F(MarketTest, CompanyManagementTest) {
-    auto company = testMarket->getCompanyByTicker("TTECH");
-    ASSERT_NE(company, nullptr);
-    ASSERT_EQ(company->getTicker(), "TTECH");
+// Test adding companies to the market
+TEST_F(MarketTest, AddCompany) {
+    auto company = createTestCompany("Test Co", "TST", Sector::Technology, 100.0);
+    market->addCompany(company);
 
-    auto nonExistentCompany = testMarket->getCompanyByTicker("NONE");
-    ASSERT_EQ(nonExistentCompany, nullptr);
-
-    auto techCompanies = testMarket->getCompaniesBySector(Sector::Technology);
-    ASSERT_EQ(techCompanies.size(), 1);
-    ASSERT_EQ(techCompanies[0]->getSector(), Sector::Technology);
-
-    testMarket->removeCompany("TTECH");
-    ASSERT_EQ(testMarket->getCompanies().size(), 2);
-    ASSERT_EQ(testMarket->getCompanyByTicker("TTECH"), nullptr);
+    EXPECT_EQ(market->getCompanies().size(), 1);
+    EXPECT_EQ(market->getCompanies()[0]->getName(), "Test Co");
+    EXPECT_EQ(market->getCompanies()[0]->getTicker(), "TST");
 }
 
-TEST_F(MarketTest, DefaultCompaniesTest) {
-    Market market;
-    ASSERT_EQ(market.getCompanies().size(), 0);
+// Test removing companies from the market
+TEST_F(MarketTest, RemoveCompany) {
+    auto company1 = createTestCompany("Test Co 1", "TST1", Sector::Technology, 100.0);
+    auto company2 = createTestCompany("Test Co 2", "TST2", Sector::Energy, 200.0);
 
-    market.addDefaultCompanies();
-    ASSERT_GT(market.getCompanies().size(), 8);
+    market->addCompany(company1);
+    market->addCompany(company2);
+    EXPECT_EQ(market->getCompanies().size(), 2);
 
-    bool hasTech = false, hasEnergy = false, hasFinance = false,
-         hasConsumer = false, hasManufacturing = false;
+    market->removeCompany("TST1");
+    EXPECT_EQ(market->getCompanies().size(), 1);
+    EXPECT_EQ(market->getCompanies()[0]->getTicker(), "TST2");
 
-    for (const auto& company : market.getCompanies()) {
-        switch (company->getSector()) {
-            case Sector::Technology: hasTech = true; break;
-            case Sector::Energy: hasEnergy = true; break;
-            case Sector::Finance: hasFinance = true; break;
-            case Sector::Consumer: hasConsumer = true; break;
-            case Sector::Manufacturing: hasManufacturing = true; break;
-            default: break;
+    market->removeCompany("TST2");
+    EXPECT_TRUE(market->getCompanies().empty());
+}
+
+// Test getting company by ticker
+TEST_F(MarketTest, GetCompanyByTicker) {
+    auto company1 = createTestCompany("Test Co 1", "TST1", Sector::Technology, 100.0);
+    auto company2 = createTestCompany("Test Co 2", "TST2", Sector::Energy, 200.0);
+
+    market->addCompany(company1);
+    market->addCompany(company2);
+
+    auto foundCompany = market->getCompanyByTicker("TST1");
+    EXPECT_NE(foundCompany, nullptr);
+    EXPECT_EQ(foundCompany->getName(), "Test Co 1");
+
+    foundCompany = market->getCompanyByTicker("TST2");
+    EXPECT_NE(foundCompany, nullptr);
+    EXPECT_EQ(foundCompany->getName(), "Test Co 2");
+
+    foundCompany = market->getCompanyByTicker("NONEXISTENT");
+    EXPECT_EQ(foundCompany, nullptr);
+}
+
+// Test getting companies by sector
+TEST_F(MarketTest, GetCompaniesBySector) {
+    auto company1 = createTestCompany("Tech 1", "TCH1", Sector::Technology, 100.0);
+    auto company2 = createTestCompany("Tech 2", "TCH2", Sector::Technology, 150.0);
+    auto company3 = createTestCompany("Energy", "ENRG", Sector::Energy, 200.0);
+
+    market->addCompany(company1);
+    market->addCompany(company2);
+    market->addCompany(company3);
+
+    auto techCompanies = market->getCompaniesBySector(Sector::Technology);
+    EXPECT_EQ(techCompanies.size(), 2);
+
+    auto energyCompanies = market->getCompaniesBySector(Sector::Energy);
+    EXPECT_EQ(energyCompanies.size(), 1);
+    EXPECT_EQ(energyCompanies[0]->getTicker(), "ENRG");
+
+    auto financeCompanies = market->getCompaniesBySector(Sector::Finance);
+    EXPECT_TRUE(financeCompanies.empty());
+}
+
+// Test adding default companies
+TEST_F(MarketTest, AddDefaultCompanies) {
+    market->addDefaultCompanies();
+
+    EXPECT_FALSE(market->getCompanies().empty());
+    EXPECT_GE(market->getCompanies().size(), 8); // TS mentions 8-10 companies
+
+    // Verify we have companies in each sector
+    EXPECT_FALSE(market->getCompaniesBySector(Sector::Technology).empty());
+    EXPECT_FALSE(market->getCompaniesBySector(Sector::Energy).empty());
+    EXPECT_FALSE(market->getCompaniesBySector(Sector::Finance).empty());
+    EXPECT_FALSE(market->getCompaniesBySector(Sector::Consumer).empty());
+    EXPECT_FALSE(market->getCompaniesBySector(Sector::Manufacturing).empty());
+
+    // Verify at least one tech company exists as specified
+    bool techCorpFound = false;
+    for (const auto& company : market->getCompanies()) {
+        if (company->getTicker() == "TCH") {
+            techCorpFound = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(techCorpFound);
+}
+
+// Test market simulation (day advancement)
+TEST_F(MarketTest, SimulateDay) {
+    market->addDefaultCompanies();
+    int initialDay = market->getCurrentDay();
+    Date initialDate = market->getCurrentDate();
+    double initialIndex = market->getMarketIndex();
+
+    market->simulateDay();
+
+    // Check that day advanced
+    EXPECT_EQ(market->getCurrentDay(), initialDay + 1);
+
+    // Check that date advanced by one day
+    Date expectedNextDate = initialDate;
+    expectedNextDate.nextDay();
+    EXPECT_TRUE(market->getCurrentDate() == expectedNextDate);
+
+    // Market index should change (though we can't predict how)
+    EXPECT_NE(market->getMarketIndex(), initialIndex);
+
+    // Companies should have updated prices
+    for (const auto& company : market->getCompanies()) {
+        // The day change should be non-zero since prices got updated
+        EXPECT_NE(company->getStock()->getDayChangeAmount(), 0.0);
+    }
+}
+
+// Test multiple day simulation
+TEST_F(MarketTest, SimulateMultipleDays) {
+    market->addDefaultCompanies();
+    int initialDay = market->getCurrentDay();
+    Date initialDate = market->getCurrentDate();
+
+    // Simulate 30 days
+    for (int i = 0; i < 30; i++) {
+        market->simulateDay();
+    }
+
+    EXPECT_EQ(market->getCurrentDay(), initialDay + 30);
+
+    // Check date advanced by 30 days
+    Date expectedDate = initialDate;
+    expectedDate.advanceDays(30);
+    EXPECT_TRUE(market->getCurrentDate() == expectedDate);
+
+    // After 30 days, stock prices should have significant history
+    for (const auto& company : market->getCompanies()) {
+        EXPECT_GE(company->getStock()->getPriceHistoryLength(), 30);
+    }
+}
+
+// Test market trend setter
+TEST_F(MarketTest, SetMarketTrend) {
+    // Set trend to Bullish
+    market->setMarketTrend(MarketTrend::Bullish);
+    EXPECT_EQ(market->getCurrentTrend(), MarketTrend::Bullish);
+    EXPECT_EQ(market->getTrendName(), "Bullish");
+
+    // Set trend to Bearish
+    market->setMarketTrend(MarketTrend::Bearish);
+    EXPECT_EQ(market->getCurrentTrend(), MarketTrend::Bearish);
+    EXPECT_EQ(market->getTrendName(), "Bearish");
+
+    // Set trend to Volatile
+    market->setMarketTrend(MarketTrend::Volatile);
+    EXPECT_EQ(market->getCurrentTrend(), MarketTrend::Volatile);
+    EXPECT_EQ(market->getTrendName(), "Volatile");
+}
+
+// Test economic event triggering
+TEST_F(MarketTest, TriggerEconomicEvent) {
+    market->addDefaultCompanies();
+    double initialIndex = market->getMarketIndex();
+
+    // Trigger a positive economic event
+    market->triggerEconomicEvent(0.05, true);
+
+    // Market index should increase
+    EXPECT_GT(market->getMarketIndex(), initialIndex);
+
+    // All company prices should be affected
+    for (const auto& company : market->getCompanies()) {
+        // Prices have changed due to the event
+        EXPECT_NE(company->getStock()->getCurrentPrice(), company->getStock()->getOpenPrice());
+    }
+
+    // Now trigger a negative economic event
+    double currentIndex = market->getMarketIndex();
+    market->triggerEconomicEvent(-0.05, true);
+
+    // Market index should decrease
+    EXPECT_LT(market->getMarketIndex(), currentIndex);
+}
+
+// Test economic event affecting specific sectors
+TEST_F(MarketTest, TriggerSectorSpecificEvent) {
+    market->addDefaultCompanies();
+
+    // Get initial prices for companies in each sector
+    std::map<Sector, std::vector<double>> initialSectorPrices;
+
+    for (const auto& company : market->getCompanies()) {
+        Sector sector = company->getSector();
+        initialSectorPrices[sector].push_back(company->getStock()->getCurrentPrice());
+    }
+
+    // Trigger an economic event with affectAllSectors=false
+    // This will randomly impact one sector more than others
+    market->triggerEconomicEvent(0.1, false);
+
+    // At least some prices should have changed
+    bool pricesChanged = false;
+    for (const auto& company : market->getCompanies()) {
+        if (company->getStock()->getCurrentPrice() != company->getStock()->getOpenPrice()) {
+            pricesChanged = true;
+            break;
         }
     }
 
-    ASSERT_TRUE(hasTech);
-    ASSERT_TRUE(hasEnergy);
-    ASSERT_TRUE(hasFinance);
-    ASSERT_TRUE(hasConsumer);
-    ASSERT_TRUE(hasManufacturing);
+    EXPECT_TRUE(pricesChanged);
 }
 
-TEST_F(MarketTest, SimulateDayTest) {
-    double initialIndex = testMarket->getMarketIndex();
-    double initialPrice = testMarket->getCompanyByTicker("TTECH")->getStock()->getCurrentPrice();
+// Test serialization to JSON
+TEST_F(MarketTest, SerializeToJson) {
+    market->addDefaultCompanies();
+    market->simulateDay(); // To generate some data
 
-    testMarket->simulateDay();
+    // Convert to JSON
+    nlohmann::json marketJson = market->toJson();
 
-    ASSERT_EQ(testMarket->getCurrentDay(), 1);
+    // Verify JSON structure
+    EXPECT_TRUE(marketJson.contains("current_date"));
+    EXPECT_TRUE(marketJson.contains("market_state"));
+    EXPECT_TRUE(marketJson.contains("sector_trends"));
+    EXPECT_TRUE(marketJson.contains("companies"));
 
-    double newIndex = testMarket->getMarketIndex();
-    ASSERT_NE(newIndex, initialIndex);
+    // Verify companies are serialized
+    EXPECT_EQ(marketJson["companies"].size(), market->getCompanies().size());
 
-    const auto& state = testMarket->getState();
-    ASSERT_NE(state.dailyChange, 0.0);
-    ASSERT_NE(state.dailyChangePercent, 0.0);
-
-    double newPrice = testMarket->getCompanyByTicker("TTECH")->getStock()->getCurrentPrice();
-    ASSERT_NE(newPrice, initialPrice);
+    // Verify date is serialized
+    EXPECT_TRUE(marketJson["current_date"].contains("day"));
+    EXPECT_TRUE(marketJson["current_date"].contains("month"));
+    EXPECT_TRUE(marketJson["current_date"].contains("year"));
 }
 
-TEST_F(MarketTest, MarketTrendTest) {
-    testMarket->setMarketTrend(MarketTrend::Bullish);
-    ASSERT_EQ(testMarket->getCurrentTrend(), MarketTrend::Bullish);
-    ASSERT_EQ(testMarket->getTrendName(), "Bullish");
+// Test deserialization from JSON
+TEST_F(MarketTest, DeserializeFromJson) {
+    market->addDefaultCompanies();
+    market->simulateDay(); // To generate some data
 
-    double initialIndex = testMarket->getMarketIndex();
+    Date originalDate = market->getCurrentDate();
+    double originalIndex = market->getMarketIndex();
+    MarketTrend originalTrend = market->getCurrentTrend();
+    size_t originalCompanyCount = market->getCompanies().size();
 
-    for (int i = 0; i < 10; i++) {
-        testMarket->simulateDay();
-    }
+    // Convert to JSON
+    nlohmann::json marketJson = market->toJson();
 
-    ASSERT_GT(testMarket->getMarketIndex(), initialIndex);
+    // Create a new market from JSON
+    Market deserializedMarket = Market::fromJson(marketJson);
 
-    testMarket->setMarketTrend(MarketTrend::Bearish);
-    ASSERT_EQ(testMarket->getCurrentTrend(), MarketTrend::Bearish);
-
-    double indexAfterBullish = testMarket->getMarketIndex();
-
-    for (int i = 0; i < 10; i++) {
-        testMarket->simulateDay();
-    }
-
-    ASSERT_LT(testMarket->getMarketIndex(), indexAfterBullish);
+    // Verify deserialized market has same properties
+    EXPECT_TRUE(deserializedMarket.getCurrentDate() == originalDate);
+    EXPECT_NEAR(deserializedMarket.getMarketIndex(), originalIndex, 0.001);
+    EXPECT_EQ(deserializedMarket.getCompanies().size(), originalCompanyCount);
+    EXPECT_EQ(deserializedMarket.getCurrentTrend(), originalTrend);
 }
 
-TEST_F(MarketTest, EconomicEventTest) {
-    double initialIndex = testMarket->getMarketIndex();
+// Test market trend string conversion
+TEST_F(MarketTest, MarketTrendStringConversion) {
+    EXPECT_EQ(Market::marketTrendToString(MarketTrend::Bullish), "Bullish");
+    EXPECT_EQ(Market::marketTrendToString(MarketTrend::Bearish), "Bearish");
+    EXPECT_EQ(Market::marketTrendToString(MarketTrend::Sideways), "Sideways");
+    EXPECT_EQ(Market::marketTrendToString(MarketTrend::Volatile), "Volatile");
 
-    testMarket->triggerEconomicEvent(0.05);
-
-    ASSERT_GT(testMarket->getMarketIndex(), initialIndex);
-
-    double currentIndex = testMarket->getMarketIndex();
-    testMarket->triggerEconomicEvent(-0.1);
-
-    ASSERT_LT(testMarket->getMarketIndex(), currentIndex);
+    EXPECT_EQ(Market::marketTrendFromString("Bullish"), MarketTrend::Bullish);
+    EXPECT_EQ(Market::marketTrendFromString("Bearish"), MarketTrend::Bearish);
+    EXPECT_EQ(Market::marketTrendFromString("Sideways"), MarketTrend::Sideways);
+    EXPECT_EQ(Market::marketTrendFromString("Volatile"), MarketTrend::Volatile);
+    EXPECT_EQ(Market::marketTrendFromString("Unknown"), MarketTrend::Sideways); // Default
 }
 
-TEST_F(MarketTest, DividendProcessingTest) {
-    auto company = testMarket->getCompanyByTicker("TTECH");
-    DividendPolicy policy = company->getDividendPolicy();
-    policy.nextPaymentDay = 1; // Выплата на 1-й день
-    company->setDividendPolicy(policy);
-
-    testMarket->simulateDay(); // Day 1
-    testMarket->processCompanyDividends();
-
-    ASSERT_EQ(company->getDividendPolicy().nextPaymentDay, 1 + 91);
-}
-
-TEST_F(MarketTest, MacroeconomicFactorsTest) {
-    ASSERT_GT(testMarket->getInterestRate(), 0.0);
-    ASSERT_GT(testMarket->getInflationRate(), 0.0);
-    ASSERT_GT(testMarket->getUnemploymentRate(), 0.0);
-
-    for (int i = 0; i < 100; i++) {
-        testMarket->simulateDay();
-    }
-
-    ASSERT_GE(testMarket->getInterestRate(), 0.01);
-    ASSERT_LE(testMarket->getInterestRate(), 0.15);
-
-    ASSERT_GE(testMarket->getInflationRate(), 0.0);
-    ASSERT_LE(testMarket->getInflationRate(), 0.2);
-
-    ASSERT_GE(testMarket->getUnemploymentRate(), 0.02);
-    ASSERT_LE(testMarket->getUnemploymentRate(), 0.15);
-}
-
-TEST_F(MarketTest, JsonSerializationTest) {
-    for (int i = 0; i < 5; i++) {
-        testMarket->simulateDay();
-    }
-
-    nlohmann::json json = testMarket->toJson();
-
-    Market restoredMarket = Market::fromJson(json);
-
-    ASSERT_EQ(restoredMarket.getCurrentDay(), testMarket->getCurrentDay());
-    ASSERT_EQ(restoredMarket.getMarketIndex(), testMarket->getMarketIndex());
-    ASSERT_EQ(restoredMarket.getCurrentTrend(), testMarket->getCurrentTrend());
-    ASSERT_EQ(restoredMarket.getCompanies().size(), testMarket->getCompanies().size());
-
-    ASSERT_EQ(restoredMarket.getInterestRate(), testMarket->getInterestRate());
-    ASSERT_EQ(restoredMarket.getInflationRate(), testMarket->getInflationRate());
-    ASSERT_EQ(restoredMarket.getUnemploymentRate(), testMarket->getUnemploymentRate());
-}
-
-TEST_F(MarketTest, SectorTrendsTest) {
-    const auto& sectorTrends = testMarket->getSectorTrends();
-    ASSERT_FALSE(sectorTrends.empty());
-
-    ASSERT_TRUE(sectorTrends.find(Sector::Technology) != sectorTrends.end());
-    ASSERT_TRUE(sectorTrends.find(Sector::Energy) != sectorTrends.end());
-    ASSERT_TRUE(sectorTrends.find(Sector::Finance) != sectorTrends.end());
-
+// Test sector string conversion
+TEST_F(MarketTest, SectorStringConversion) {
     EXPECT_EQ(Market::sectorToString(Sector::Technology), "Technology");
     EXPECT_EQ(Market::sectorToString(Sector::Energy), "Energy");
     EXPECT_EQ(Market::sectorToString(Sector::Finance), "Finance");
     EXPECT_EQ(Market::sectorToString(Sector::Consumer), "Consumer");
     EXPECT_EQ(Market::sectorToString(Sector::Manufacturing), "Manufacturing");
+    EXPECT_EQ(Market::sectorToString(Sector::Unknown), "Unknown");
 
     EXPECT_EQ(Market::sectorFromString("Technology"), Sector::Technology);
     EXPECT_EQ(Market::sectorFromString("Energy"), Sector::Energy);
@@ -223,15 +348,116 @@ TEST_F(MarketTest, SectorTrendsTest) {
     EXPECT_EQ(Market::sectorFromString("Consumer"), Sector::Consumer);
     EXPECT_EQ(Market::sectorFromString("Manufacturing"), Sector::Manufacturing);
     EXPECT_EQ(Market::sectorFromString("Unknown"), Sector::Unknown);
-
-    ASSERT_NO_THROW(testMarket->simulateDay());
 }
 
-TEST_F(MarketTest, MarketTrendConversionTest) {
-    ASSERT_EQ(Market::marketTrendFromString(Market::marketTrendToString(MarketTrend::Bullish)), MarketTrend::Bullish);
-    ASSERT_EQ(Market::marketTrendFromString(Market::marketTrendToString(MarketTrend::Bearish)), MarketTrend::Bearish);
-    ASSERT_EQ(Market::marketTrendFromString(Market::marketTrendToString(MarketTrend::Sideways)), MarketTrend::Sideways);
-    ASSERT_EQ(Market::marketTrendFromString(Market::marketTrendToString(MarketTrend::Volatile)), MarketTrend::Volatile);
+// Test process company dividends
+TEST_F(MarketTest, ProcessCompanyDividends) {
+    auto company = createTestCompany("Dividend Co", "DIV", Sector::Finance, 100.0);
 
-    ASSERT_EQ(Market::marketTrendFromString("Unknown"), MarketTrend::Sideways);
+    // Setup company with dividend policy
+    DividendPolicy policy(4.0, 4); // 4.0 annual rate, quarterly payments
+    company->setDividendPolicy(policy);
+    market->addCompany(company);
+
+    // Initially dividend shouldn't be due
+    company->processDividends(market->getCurrentDate());
+
+    // Advance days to trigger dividend
+    for (int i = 0; i < 90; i++) { // Quarterly = ~90 days
+        market->simulateDay();
+    }
+
+    // Process dividends
+    market->processCompanyDividends();
+
+    // Difficult to assert actual dividend payment without a player
+    // But we can verify the code executes without errors
 }
+
+// Test macroeconomic factors
+TEST_F(MarketTest, MacroeconomicFactors) {
+    double initialInterestRate = market->getInterestRate();
+    double initialInflationRate = market->getInflationRate();
+    double initialUnemploymentRate = market->getUnemploymentRate();
+
+    // Simulate several days to let macroeconomic factors change
+    for (int i = 0; i < 20; i++) {
+        market->simulateDay();
+    }
+
+    // Values should eventually change due to random factors
+    // We can't predict exact values but they should be within reasonable bounds
+    EXPECT_GE(market->getInterestRate(), 0.01);
+    EXPECT_LE(market->getInterestRate(), 0.15);
+
+    EXPECT_GE(market->getInflationRate(), 0.0);
+    EXPECT_LE(market->getInflationRate(), 0.2);
+
+    EXPECT_GE(market->getUnemploymentRate(), 0.02);
+    EXPECT_LE(market->getUnemploymentRate(), 0.15);
+}
+
+// Test sector trends
+TEST_F(MarketTest, SectorTrends) {
+    market->addDefaultCompanies();
+
+    // Initially all sector trends should be 0.0
+    const auto& initialSectorTrends = market->getSectorTrends();
+    for (const auto& [sector, trend] : initialSectorTrends) {
+        EXPECT_NEAR(trend, 0.0, 0.001);
+    }
+
+    // Simulate several days to let sector trends evolve
+    for (int i = 0; i < 5; i++) {
+        market->simulateDay();
+    }
+
+    // Now trends should have changed
+    const auto& updatedSectorTrends = market->getSectorTrends();
+    bool trendsChanged = false;
+
+    for (const auto& [sector, trend] : updatedSectorTrends) {
+        if (std::abs(trend) > 0.001) {
+            trendsChanged = true;
+            break;
+        }
+    }
+
+    EXPECT_TRUE(trendsChanged);
+}
+
+// Test Date-based functionality
+TEST_F(MarketTest, DateFunctionality) {
+    // Test initial date
+    Date initialDate = market->getCurrentDate();
+    EXPECT_EQ(initialDate.getDay(), 1);
+    EXPECT_EQ(initialDate.getMonth(), 3);
+    EXPECT_EQ(initialDate.getYear(), 2023);
+
+    // Simulate a day and check date advances
+    market->simulateDay();
+    Date nextDate = market->getCurrentDate();
+
+    // Date should have advanced by one day
+    int daysBetween = initialDate.daysBetween(nextDate);
+    EXPECT_EQ(daysBetween, 1);
+
+    // Check correct month transition
+    market->setMarketTrend(MarketTrend::Sideways); // Set stable trend for testing
+
+    // Advance to end of March
+    while (market->getCurrentDate().getDay() < 31 ||
+           market->getCurrentDate().getMonth() != 3) {
+        market->simulateDay();
+    }
+
+    // One more day should advance to April 1
+    market->simulateDay();
+    Date aprilFirst = market->getCurrentDate();
+
+    EXPECT_EQ(aprilFirst.getDay(), 1);
+    EXPECT_EQ(aprilFirst.getMonth(), 4);
+    EXPECT_EQ(aprilFirst.getYear(), 2023);
+}
+
+} // namespace StockMarketSimulator

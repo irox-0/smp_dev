@@ -5,7 +5,6 @@
 
 namespace StockMarketSimulator {
 
-
 PortfolioPosition::PortfolioPosition()
     : quantity(0),
       averagePurchasePrice(0.0),
@@ -91,9 +90,8 @@ PortfolioPosition PortfolioPosition::fromJson(const nlohmann::json& json, std::s
     return position;
 }
 
-
 PortfolioHistory::PortfolioHistory()
-    : day(0),
+    : date(),
       totalValue(0.0),
       cashBalance(0.0),
       totalReturn(0.0),
@@ -101,8 +99,8 @@ PortfolioHistory::PortfolioHistory()
 {
 }
 
-PortfolioHistory::PortfolioHistory(int day, double totalValue, double cashBalance, double totalReturn, double totalReturnPercent)
-    : day(day),
+PortfolioHistory::PortfolioHistory(const Date& date, double totalValue, double cashBalance, double totalReturn, double totalReturnPercent)
+    : date(date),
       totalValue(totalValue),
       cashBalance(cashBalance),
       totalReturn(totalReturn),
@@ -113,7 +111,7 @@ PortfolioHistory::PortfolioHistory(int day, double totalValue, double cashBalanc
 nlohmann::json PortfolioHistory::toJson() const {
     nlohmann::json j;
 
-    j["day"] = day;
+    j["date"] = date.toJson();
     j["total_value"] = totalValue;
     j["cash_balance"] = cashBalance;
     j["total_return"] = totalReturn;
@@ -125,7 +123,15 @@ nlohmann::json PortfolioHistory::toJson() const {
 PortfolioHistory PortfolioHistory::fromJson(const nlohmann::json& json) {
     PortfolioHistory history;
 
-    history.day = json["day"];
+    if (json.contains("date")) {
+        history.date = Date::fromJson(json["date"]);
+    } else if (json.contains("day")) {
+        int day = json["day"];
+        history.date = Date::fromDayNumber(day);
+    } else {
+        history.date = Date();
+    }
+
     history.totalValue = json["total_value"];
     history.cashBalance = json["cash_balance"];
     history.totalReturn = json["total_return"];
@@ -133,7 +139,6 @@ PortfolioHistory PortfolioHistory::fromJson(const nlohmann::json& json) {
 
     return history;
 }
-
 
 Portfolio::Portfolio()
     : initialInvestment(0.0),
@@ -235,7 +240,7 @@ const PortfolioPosition* Portfolio::getPosition(const std::string& ticker) const
     return nullptr;
 }
 
-bool Portfolio::buyStock(std::shared_ptr<Company> company, int quantity, double price, double commission, int day) {
+bool Portfolio::buyStock(std::shared_ptr<Company> company, int quantity, double price, double commission, const Date& date) {
     if (!company || quantity <= 0 || price <= 0) {
         return false;
     }
@@ -248,7 +253,7 @@ bool Portfolio::buyStock(std::shared_ptr<Company> company, int quantity, double 
         return false;
     }
 
-    Transaction transaction(TransactionType::Buy, company, quantity, price, commission, day);
+    Transaction transaction(TransactionType::Buy, company, quantity, price, commission, date);
 
     cashBalance -= totalCost;
 
@@ -266,7 +271,8 @@ bool Portfolio::buyStock(std::shared_ptr<Company> company, int quantity, double 
 
     return true;
 }
-bool Portfolio::sellStock(std::shared_ptr<Company> company, int quantity, double price, double commission, int day) {
+
+bool Portfolio::sellStock(std::shared_ptr<Company> company, int quantity, double price, double commission, const Date& date) {
     if (!company || quantity <= 0 || price <= 0) {
         return false;
     }
@@ -276,7 +282,7 @@ bool Portfolio::sellStock(std::shared_ptr<Company> company, int quantity, double
         return false;
     }
 
-    Transaction transaction(TransactionType::Sell, company, quantity, price, commission, day);
+    Transaction transaction(TransactionType::Sell, company, quantity, price, commission, date);
     if (!transaction.validateSellTransaction(getPositionQuantity(ticker))) {
         return false;
     }
@@ -323,20 +329,21 @@ void Portfolio::updatePortfolioValue() {
     totalValue = cashBalance + stocksValue;
 }
 
-void Portfolio::closeDay(int day) {
+// Updated to use Date
+void Portfolio::closeDay(const Date& date) {
     updatePositionValues();
-    recordHistoryEntry(day);
+    recordHistoryEntry(date);
 }
 
 void Portfolio::openDay() {
     previousDayValue = totalValue;
 }
 
-void Portfolio::recordHistoryEntry(int day) {
+void Portfolio::recordHistoryEntry(const Date& date) {
     double totalReturn = getTotalReturn();
     double totalReturnPercent = getTotalReturnPercent();
 
-    PortfolioHistory entry(day, totalValue, cashBalance, totalReturn, totalReturnPercent);
+    PortfolioHistory entry(date, totalValue, cashBalance, totalReturn, totalReturnPercent);
     history.push_back(entry);
 
     const size_t MAX_HISTORY_SIZE = 365 * 5;

@@ -5,6 +5,7 @@
 #include <memory>
 #include <nlohmann/json.hpp>
 #include "Stock.hpp"
+#include "../utils/Date.hpp"
 
 namespace StockMarketSimulator {
 
@@ -21,15 +22,17 @@ struct DividendPolicy {
     double annualDividendRate;
     int paymentFrequency;
     int daysBetweenPayments;
-    int nextPaymentDay;
+    Date nextPaymentDay;
 
     DividendPolicy();
     DividendPolicy(double rate, int frequency);
 
+    bool shouldPayDividend(const Date& currentDate) const;
     bool shouldPayDividend(int currentDay) const;
 
     double calculateDividendAmount() const;
 
+    void scheduleNextPayment(const Date& currentDate);
     void scheduleNextPayment(int currentDay);
 
     nlohmann::json toJson() const;
@@ -91,7 +94,12 @@ public:
     void closeTradingDay();
     void openTradingDay();
 
+    void closeTradingDay(const Date& currentDate);
+    void openTradingDay(const Date& currentDate);
+
+    bool processDividends(const Date& currentDate);
     bool processDividends(int currentDay);
+
     double calculateDividendAmount() const;
 
     nlohmann::json toJson() const;

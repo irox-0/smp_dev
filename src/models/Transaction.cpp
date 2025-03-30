@@ -11,21 +11,21 @@ Transaction::Transaction()
       commissionRate(0.01),
       commissionAmount(0.0),
       totalCost(0.0),
-      transactionDay(0),
+      transactionDate(),
       executed(false),
       status("Initialized")
 {
 }
 
-Transaction::Transaction(TransactionType type, std::weak_ptr<Company> company, 
+Transaction::Transaction(TransactionType type, std::weak_ptr<Company> company,
                          int quantity, double pricePerShare, double commissionRate,
-                         int transactionDay)
+                         const Date& transactionDate)
     : type(type),
       company(company),
       quantity(std::max(0, quantity)),
       pricePerShare(std::max(0.0, pricePerShare)),
       commissionRate(std::max(0.0, std::min(0.1, commissionRate))),
-      transactionDay(std::max(0, transactionDay)),
+      transactionDate(transactionDate),
       executed(false),
       status("Initialized")
 {
@@ -39,7 +39,7 @@ void Transaction::calculateCommission() {
 
 void Transaction::calculateTotalCost() {
     double baseCost = pricePerShare * quantity;
-    
+
     if (type == TransactionType::Buy) {
         totalCost = baseCost + commissionAmount;
     } else {
@@ -75,8 +75,8 @@ double Transaction::getTotalCost() const {
     return totalCost;
 }
 
-int Transaction::getTransactionDay() const {
-    return transactionDay;
+Date Transaction::getTransactionDate() const {
+    return transactionDate;
 }
 
 bool Transaction::isExecuted() const {
@@ -120,10 +120,8 @@ void Transaction::setCommissionRate(double rate) {
     }
 }
 
-void Transaction::setTransactionDay(int day) {
-    if (day >= 0) {
-        this->transactionDay = day;
-    }
+void Transaction::setTransactionDate(const Date& date) {
+    this->transactionDate = date;
 }
 
 void Transaction::setExecuted(bool executed) {
@@ -139,25 +137,25 @@ bool Transaction::validateTransaction(double availableFunds) {
         status = "Transaction already executed";
         return false;
     }
-    
+
     if (quantity <= 0) {
         status = "Invalid quantity";
         return false;
     }
-    
+
     auto companyPtr = company.lock();
     if (!companyPtr) {
         status = "Invalid company reference";
         return false;
     }
-    
+
     if (type == TransactionType::Buy) {
         if (totalCost > availableFunds) {
             status = "Insufficient funds";
             return false;
         }
     }
-    
+
     status = "Valid";
     return true;
 }
@@ -167,28 +165,28 @@ bool Transaction::validateSellTransaction(int availableShares) {
         status = "Not a sell transaction";
         return false;
     }
-    
+
     if (executed) {
         status = "Transaction already executed";
         return false;
     }
-    
+
     if (quantity <= 0) {
         status = "Invalid quantity";
         return false;
     }
-    
+
     auto companyPtr = company.lock();
     if (!companyPtr) {
         status = "Invalid company reference";
         return false;
     }
-    
+
     if (quantity > availableShares) {
         status = "Insufficient shares";
         return false;
     }
-    
+
     status = "Valid";
     return true;
 }
@@ -219,46 +217,51 @@ std::string Transaction::transactionTypeToString(TransactionType type) {
 TransactionType Transaction::transactionTypeFromString(const std::string& typeStr) {
     if (typeStr == "Buy") return TransactionType::Buy;
     if (typeStr == "Sell") return TransactionType::Sell;
-    
+
     return TransactionType::Buy;
 }
 
 nlohmann::json Transaction::toJson() const {
     nlohmann::json j;
-    
+
     j["type"] = transactionTypeToString(type);
     j["quantity"] = quantity;
     j["price_per_share"] = pricePerShare;
     j["commission_rate"] = commissionRate;
     j["commission_amount"] = commissionAmount;
     j["total_cost"] = totalCost;
-    j["transaction_day"] = transactionDay;
+    j["transaction_date"] = transactionDate.toJson();
     j["executed"] = executed;
     j["status"] = status;
-    
+
     auto companyPtr = company.lock();
     if (companyPtr) {
         j["company_ticker"] = companyPtr->getTicker();
     } else {
         j["company_ticker"] = "";
     }
-    
+
     return j;
 }
 
 Transaction Transaction::fromJson(const nlohmann::json& json) {
     Transaction transaction;
-    
+
     transaction.type = transactionTypeFromString(json["type"]);
     transaction.quantity = json["quantity"];
     transaction.pricePerShare = json["price_per_share"];
     transaction.commissionRate = json["commission_rate"];
     transaction.commissionAmount = json["commission_amount"];
     transaction.totalCost = json["total_cost"];
-    transaction.transactionDay = json["transaction_day"];
+
+    if (json.contains("transaction_date")) {
+        transaction.transactionDate = Date::fromJson(json["transaction_date"]);
+    } else {
+        transaction.transactionDate = Date();
+    }
+
     transaction.executed = json["executed"];
     transaction.status = json["status"];
-    
 
     return transaction;
 }

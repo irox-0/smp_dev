@@ -9,6 +9,7 @@
 #include "Company.hpp"
 #include "Stock.hpp"
 #include "Transaction.hpp"
+#include "../utils/Date.hpp"
 
 namespace StockMarketSimulator {
 
@@ -33,14 +34,14 @@ struct PortfolioPosition {
 };
 
 struct PortfolioHistory {
-    int day;
+    Date date;
     double totalValue;
     double cashBalance;
     double totalReturn;
     double totalReturnPercent;
 
     PortfolioHistory();
-    PortfolioHistory(int day, double totalValue, double cashBalance, double totalReturn, double totalReturnPercent);
+    PortfolioHistory(const Date& date, double totalValue, double cashBalance, double totalReturn, double totalReturnPercent);
 
     nlohmann::json toJson() const;
     static PortfolioHistory fromJson(const nlohmann::json& json);
@@ -59,7 +60,7 @@ private:
     double totalDividendsReceived;
 
     void updatePortfolioValue();
-    void recordHistoryEntry(int day);
+    void recordHistoryEntry(const Date& date);
 
 public:
     Portfolio();
@@ -84,11 +85,11 @@ public:
     int getPositionQuantity(const std::string& ticker) const;
     const PortfolioPosition* getPosition(const std::string& ticker) const;
 
-    bool buyStock(std::shared_ptr<Company> company, int quantity, double price, double commission, int day);
-    bool sellStock(std::shared_ptr<Company> company, int quantity, double price, double commission, int day);
+    bool buyStock(std::shared_ptr<Company> company, int quantity, double price, double commission, const Date& date);
+    bool sellStock(std::shared_ptr<Company> company, int quantity, double price, double commission, const Date& date);
 
     void updatePositionValues();
-    void closeDay(int day);
+    void closeDay(const Date& date);
     void openDay();
 
     void receiveDividends(std::shared_ptr<Company> company, double amount);

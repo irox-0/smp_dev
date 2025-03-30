@@ -12,7 +12,6 @@ NewsScreen::NewsScreen()
       currentPage(0),
       newsPerPage(6)
 {
-    // Set size to match the mockup layout exactly
     setSize(46, 31);
 
 }
@@ -67,7 +66,7 @@ void NewsScreen::updateDisplayedNews() {
 
     std::sort(filteredNews.begin(), filteredNews.end(),
              [](const News& a, const News& b) {
-                 return a.getPublishDay() > b.getPublishDay();
+                 return a.getPublishDate() > b.getPublishDate();
              });
 
     int totalNews = static_cast<int>(filteredNews.size());
@@ -161,7 +160,7 @@ void NewsScreen::drawNewsList() const {
 
         Console::setCursorPosition(x + 2, newsY);
         Console::setColor(TextColor::Cyan, bodyBg);
-        Console::print(typeStr + " " + std::to_string(news.getPublishDay()) + ".03.2023");
+        Console::print(typeStr + " " + news.getPublishDate().toString() + ".03.2023");
 
         Console::setCursorPosition(x + 2, newsY + 1);
         Console::setColor(bodyFg, bodyBg);
@@ -258,7 +257,7 @@ void NewsScreen::displayNewsDetails(const News& news) {
     int contentY = y + 3;
 
     Console::setCursorPosition(x + 2, contentY);
-    Console::setColor(TextColor::Cyan, bodyBg);
+    Console::setColor(TextColor::Blue, bodyBg);
 
     std::string typeStr;
     switch (news.getType()) {
@@ -287,7 +286,7 @@ void NewsScreen::displayNewsDetails(const News& news) {
         break;
     }
 
-    Console::print(typeStr + " " + std::to_string(news.getPublishDay()) + ".03.2023");
+    Console::print(typeStr + " " + news.getPublishDate().toString());
     contentY += 2;
 
     Console::setCursorPosition(x + 2, contentY);

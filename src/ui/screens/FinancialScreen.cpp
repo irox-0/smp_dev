@@ -653,17 +653,6 @@ void FinancialScreen::repayLoan() {
                 running = false;
                 break;
 
-            // case static_cast<char>(Key::Escape):
-            //     selected = static_cast<int>(options.size()) - 1; // Select Cancel
-            //     running = false;
-            //     break;
-            //
-            // default:
-            //     if (key >= '1' && key <= '9' && (key - '1') < static_cast<int>(activeLoanIndices.size())) {
-            //         selected = key - '1';
-            //         running = false;
-            //     }
-            //     break;
         }
     }
 

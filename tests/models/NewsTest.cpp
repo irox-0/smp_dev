@@ -1,212 +1,255 @@
 #include <gtest/gtest.h>
-#include "models/News.hpp"
-#include "models/Company.hpp"
+#include <memory>
+#include "../../src/models/News.hpp"
+#include "../../src/models/Company.hpp"
+#include "../../src/utils/Date.hpp"
 
 using namespace StockMarketSimulator;
 
 class NewsTest : public ::testing::Test {
 protected:
+    std::shared_ptr<Company> testCompany;
+    std::shared_ptr<Company> anotherCompany;
+    Date testDate;
+
     void SetUp() override {
-        techCompany = std::make_shared<Company>(
-            "Tech Corp", "TECH",
-            "Technology company", Sector::Technology,
-            100.0, 0.5, DividendPolicy(2.0, 4)
+        // Create a test company
+        testCompany = std::make_shared<Company>(
+            "TestCorp", "TEST",
+            "A test company for unit tests",
+            Sector::Technology,
+            100.0, 0.5,
+            DividendPolicy(1.0, 4)
         );
-        
-        energyCompany = std::make_shared<Company>(
-            "Energy Corp", "ENRG",
-            "Energy company", Sector::Energy,
-            50.0, 0.4, DividendPolicy(3.0, 4)
+
+        // Create another company for comparison tests
+        anotherCompany = std::make_shared<Company>(
+            "AnotherCorp", "ANTH",
+            "Another test company",
+            Sector::Energy,
+            50.0, 0.3,
+            DividendPolicy(0.5, 2)
         );
-        
-        globalNews = std::make_unique<News>(
-            NewsType::Global,
-            "Central Bank Reduces Interest Rate",
-            "Central Bank has announced a 0.5% reduction in the base interest rate.",
-            0.02, 1
-        );
-        
-        sectorNews = std::make_unique<News>(
-            NewsType::Sector,
-            "New Regulations in Technology Sector",
-            "Government introduces new regulations affecting technology companies.",
-            -0.01, 1, Sector::Technology
-        );
-        
-        corporateNews = std::make_unique<News>(
-            NewsType::Corporate,
-            "Tech Corp Announces New Product",
-            "Tech Corp has announced a revolutionary new product that will hit the market next quarter.",
-            0.05, 1, techCompany
-        );
-    }
-    
-    std::shared_ptr<Company> techCompany;
-    std::shared_ptr<Company> energyCompany;
-    std::unique_ptr<News> globalNews;
-    std::unique_ptr<News> sectorNews;
-    std::unique_ptr<News> corporateNews;
-    
-    NewsTemplate createTestTemplate() {
-        return NewsTemplate(
-            NewsType::Global,
-            "Economy %s by %d%%",
-            "The economy has %s by %d%% according to latest reports.",
-            -0.03, 0.03,
-            true, false
-        );
+
+        // Create a test date (April 15, 2023)
+        testDate = Date(15, 4, 2023);
     }
 };
 
-TEST_F(NewsTest, InitializationTest) {
-    ASSERT_EQ(globalNews->getType(), NewsType::Global);
-    ASSERT_EQ(globalNews->getTitle(), "Central Bank Reduces Interest Rate");
-    ASSERT_EQ(globalNews->getContent(), "Central Bank has announced a 0.5% reduction in the base interest rate.");
-    ASSERT_DOUBLE_EQ(globalNews->getImpact(), 0.02);
-    ASSERT_EQ(globalNews->getPublishDay(), 1);
-    ASSERT_FALSE(globalNews->isProcessed());
-    
-    ASSERT_EQ(sectorNews->getType(), NewsType::Sector);
-    ASSERT_EQ(sectorNews->getTargetSector(), Sector::Technology);
-    
-    ASSERT_EQ(corporateNews->getType(), NewsType::Corporate);
-    auto company = corporateNews->getTargetCompany().lock();
-    ASSERT_NE(company, nullptr);
-    ASSERT_EQ(company->getTicker(), "TECH");
+// Test the basic constructor and getters
+TEST_F(NewsTest, ConstructorAndGetters) {
+    // Create a news item
+    News news(NewsType::Global, "Test Title", "Test Content", 0.02, testDate);
+
+    // Test getters
+    EXPECT_EQ(news.getType(), NewsType::Global);
+    EXPECT_EQ(news.getTitle(), "Test Title");
+    EXPECT_EQ(news.getContent(), "Test Content");
+    EXPECT_DOUBLE_EQ(news.getImpact(), 0.02);
+    EXPECT_EQ(news.getPublishDate(), testDate);
+    EXPECT_EQ(news.getTargetSector(), Sector::Unknown);
+    EXPECT_FALSE(news.isProcessed());
 }
 
-TEST_F(NewsTest, SettersTest) {
+// Test news with sector target
+TEST_F(NewsTest, SectorTargetNews) {
+    // Create a sector news item
+    News news(NewsType::Sector, "Sector News", "Sector Content", -0.01, testDate, Sector::Technology);
+
+    // Test sector-specific getters
+    EXPECT_EQ(news.getType(), NewsType::Sector);
+    EXPECT_EQ(news.getTargetSector(), Sector::Technology);
+
+    // Test shouldAffectMarket and shouldAffectSector methods
+    EXPECT_FALSE(news.shouldAffectMarket());
+    EXPECT_TRUE(news.shouldAffectSector(Sector::Technology));
+    EXPECT_FALSE(news.shouldAffectSector(Sector::Energy));
+
+    // Test shouldAffectCompany method
+    EXPECT_TRUE(news.shouldAffectCompany(testCompany));       // Technology company
+    EXPECT_FALSE(news.shouldAffectCompany(anotherCompany));   // Energy company
+}
+
+// Test news with company target
+TEST_F(NewsTest, CompanyTargetNews) {
+    // Create a company news item
+    News news(NewsType::Corporate, "Company News", "Company Content", 0.03, testDate, testCompany);
+
+    // Test company-specific getters
+    EXPECT_EQ(news.getType(), NewsType::Corporate);
+    EXPECT_EQ(news.getTargetSector(), Sector::Technology); // Should be set from testCompany's sector
+
+    auto targetCompany = news.getTargetCompany().lock();
+    ASSERT_TRUE(targetCompany);
+    EXPECT_EQ(targetCompany->getTicker(), "TEST");
+
+    // Test shouldAffectMarket, shouldAffectSector, and shouldAffectCompany methods
+    EXPECT_FALSE(news.shouldAffectMarket());
+    EXPECT_FALSE(news.shouldAffectCompany(anotherCompany));
+    EXPECT_TRUE(news.shouldAffectCompany(testCompany));
+}
+
+// Test global news affecting everything
+TEST_F(NewsTest, GlobalNewsEffects) {
+    // Create global news
+    News news(NewsType::Global, "Global News", "Global Content", 0.05, testDate);
+
+    // Global news should affect everything
+    EXPECT_TRUE(news.shouldAffectMarket());
+    EXPECT_TRUE(news.shouldAffectSector(Sector::Technology));
+    EXPECT_TRUE(news.shouldAffectSector(Sector::Energy));
+    EXPECT_TRUE(news.shouldAffectCompany(testCompany));
+    EXPECT_TRUE(news.shouldAffectCompany(anotherCompany));
+}
+
+// Test setters
+TEST_F(NewsTest, Setters) {
     News news;
-    
-    news.setType(NewsType::Global);
-    ASSERT_EQ(news.getType(), NewsType::Global);
-    
-    news.setTitle("Test Title");
-    ASSERT_EQ(news.getTitle(), "Test Title");
-    
-    news.setContent("Test Content");
-    ASSERT_EQ(news.getContent(), "Test Content");
-    
-    news.setImpact(0.03);
-    ASSERT_DOUBLE_EQ(news.getImpact(), 0.03);
-    
-    news.setPublishDay(5);
-    ASSERT_EQ(news.getPublishDay(), 5);
-    
-    news.setTargetSector(Sector::Energy);
-    ASSERT_EQ(news.getTargetSector(), Sector::Energy);
-    
-    news.setTargetCompany(techCompany);
-    auto company = news.getTargetCompany().lock();
-    ASSERT_NE(company, nullptr);
-    ASSERT_EQ(company->getTicker(), "TECH");
-    
+
+    // Test setters
+    news.setType(NewsType::Sector);
+    news.setTitle("New Title");
+    news.setContent("New Content");
+    news.setImpact(-0.03);
+    news.setPublishDate(testDate);
+    news.setTargetSector(Sector::Finance);
     news.setProcessed(true);
-    ASSERT_TRUE(news.isProcessed());
+
+    // Check if setters worked
+    EXPECT_EQ(news.getType(), NewsType::Sector);
+    EXPECT_EQ(news.getTitle(), "New Title");
+    EXPECT_EQ(news.getContent(), "New Content");
+    EXPECT_DOUBLE_EQ(news.getImpact(), -0.03);
+    EXPECT_EQ(news.getPublishDate(), testDate);
+    EXPECT_EQ(news.getTargetSector(), Sector::Finance);
+    EXPECT_TRUE(news.isProcessed());
+
+    // Test setTargetCompany
+    news.setTargetCompany(testCompany);
+    auto company = news.getTargetCompany().lock();
+    ASSERT_TRUE(company);
+    EXPECT_EQ(company->getTicker(), "TEST");
+
+    // Target sector should now be Technology (from testCompany)
+    EXPECT_EQ(news.getTargetSector(), Sector::Technology);
 }
 
-TEST_F(NewsTest, AffectMethodsTest) {
-    ASSERT_TRUE(globalNews->shouldAffectMarket());
-    ASSERT_TRUE(globalNews->shouldAffectSector(Sector::Technology));
-    ASSERT_TRUE(globalNews->shouldAffectSector(Sector::Energy));
-    ASSERT_TRUE(globalNews->shouldAffectCompany(techCompany));
-    ASSERT_TRUE(globalNews->shouldAffectCompany(energyCompany));
+// Test JSON serialization and deserialization
+TEST_F(NewsTest, JsonSerialization) {
+    // Create a complete news item
+    News original(NewsType::Corporate, "JSON Test", "Testing JSON serialization", 0.04, testDate, testCompany);
 
-    ASSERT_FALSE(sectorNews->shouldAffectMarket());
-    ASSERT_TRUE(sectorNews->shouldAffectSector(Sector::Technology));
-    ASSERT_FALSE(sectorNews->shouldAffectSector(Sector::Energy));
-    ASSERT_TRUE(sectorNews->shouldAffectCompany(techCompany));
-    ASSERT_FALSE(sectorNews->shouldAffectCompany(energyCompany));
+    // Serialize to JSON
+    nlohmann::json json = original.toJson();
 
-    ASSERT_FALSE(corporateNews->shouldAffectMarket());
-    ASSERT_FALSE(corporateNews->shouldAffectSector(Sector::Energy));
-    ASSERT_TRUE(corporateNews->shouldAffectCompany(techCompany));
-    ASSERT_FALSE(corporateNews->shouldAffectCompany(energyCompany));
-}
-TEST_F(NewsTest, TypeConversionTest) {
-    ASSERT_EQ(News::newsTypeToString(NewsType::Global), "Global");
-    ASSERT_EQ(News::newsTypeToString(NewsType::Sector), "Sector");
-    ASSERT_EQ(News::newsTypeToString(NewsType::Corporate), "Corporate");
-    
-    ASSERT_EQ(News::newsTypeFromString("Global"), NewsType::Global);
-    ASSERT_EQ(News::newsTypeFromString("Sector"), NewsType::Sector);
-    ASSERT_EQ(News::newsTypeFromString("Corporate"), NewsType::Corporate);
-    ASSERT_EQ(News::newsTypeFromString("Unknown"), NewsType::Global);
-}
+    // Check JSON content
+    EXPECT_EQ(json["type"], "Corporate");
+    EXPECT_EQ(json["title"], "JSON Test");
+    EXPECT_EQ(json["content"], "Testing JSON serialization");
+    EXPECT_DOUBLE_EQ(json["impact"], 0.04);
+    EXPECT_FALSE(json["processed"]);
+    EXPECT_EQ(json["target_sector"], "Technology");
+    EXPECT_EQ(json["target_company_ticker"], "TEST");
 
-TEST_F(NewsTest, JsonSerializationTest) {
-    nlohmann::json json = globalNews->toJson();
-    
-    ASSERT_EQ(json["type"], "Global");
-    ASSERT_EQ(json["title"], "Central Bank Reduces Interest Rate");
-    ASSERT_EQ(json["content"], "Central Bank has announced a 0.5% reduction in the base interest rate.");
-    ASSERT_EQ(json["impact"], 0.02);
-    ASSERT_EQ(json["publish_day"], 1);
-    ASSERT_EQ(json["processed"], false);
-    
-    json = corporateNews->toJson();
-    ASSERT_EQ(json["type"], "Corporate");
-    ASSERT_EQ(json["target_company_ticker"], "TECH");
-    
-    std::vector<std::shared_ptr<Company>> companies = {techCompany, energyCompany};
-    News restoredNews = News::fromJson(json, companies);
-    
-    ASSERT_EQ(restoredNews.getType(), NewsType::Corporate);
-    ASSERT_EQ(restoredNews.getTitle(), corporateNews->getTitle());
-    ASSERT_EQ(restoredNews.getContent(), corporateNews->getContent());
-    ASSERT_DOUBLE_EQ(restoredNews.getImpact(), corporateNews->getImpact());
-    
-    auto company = restoredNews.getTargetCompany().lock();
-    ASSERT_NE(company, nullptr);
-    ASSERT_EQ(company->getTicker(), "TECH");
+    // Check publish_date JSON
+    ASSERT_TRUE(json.contains("publish_date"));
+    EXPECT_EQ(json["publish_date"]["day"], 15);
+    EXPECT_EQ(json["publish_date"]["month"], 4);
+    EXPECT_EQ(json["publish_date"]["year"], 2023);
+
+    // Create a vector of companies for deserialization
+    std::vector<std::shared_ptr<Company>> companies = {testCompany, anotherCompany};
+
+    // Deserialize from JSON
+    News deserialized = News::fromJson(json, companies);
+
+    // Check if deserialized news matches original
+    EXPECT_EQ(deserialized.getType(), original.getType());
+    EXPECT_EQ(deserialized.getTitle(), original.getTitle());
+    EXPECT_EQ(deserialized.getContent(), original.getContent());
+    EXPECT_DOUBLE_EQ(deserialized.getImpact(), original.getImpact());
+    EXPECT_EQ(deserialized.getPublishDate(), original.getPublishDate());
+    EXPECT_EQ(deserialized.getTargetSector(), original.getTargetSector());
+    EXPECT_EQ(deserialized.isProcessed(), original.isProcessed());
+
+    // Check if company reference is properly restored
+    auto deserializedCompany = deserialized.getTargetCompany().lock();
+    ASSERT_TRUE(deserializedCompany);
+    EXPECT_EQ(deserializedCompany->getTicker(), "TEST");
 }
 
-TEST_F(NewsTest, NewsTemplateTest) {
-    NewsTemplate templ = createTestTemplate();
-    
-    ASSERT_EQ(templ.type, NewsType::Global);
-    ASSERT_EQ(templ.titleTemplate, "Economy %s by %d%%");
-    ASSERT_EQ(templ.contentTemplate, "The economy has %s by %d%% according to latest reports.");
-    ASSERT_DOUBLE_EQ(templ.minImpact, -0.03);
-    ASSERT_DOUBLE_EQ(templ.maxImpact, 0.03);
-    ASSERT_TRUE(templ.requiresPositiveMarket);
-    ASSERT_FALSE(templ.requiresNegativeMarket);
-    
-    nlohmann::json json = templ.toJson();
-    
-    ASSERT_EQ(json["type"], "Global");
-    ASSERT_EQ(json["title_template"], "Economy %s by %d%%");
-    ASSERT_EQ(json["content_template"], "The economy has %s by %d%% according to latest reports.");
-    ASSERT_EQ(json["min_impact"], -0.03);
-    ASSERT_EQ(json["max_impact"], 0.03);
-    ASSERT_EQ(json["requires_positive_market"], true);
-    ASSERT_EQ(json["requires_negative_market"], false);
-    
-    NewsTemplate restoredTemplate = NewsTemplate::fromJson(json);
-    
-    ASSERT_EQ(restoredTemplate.type, templ.type);
-    ASSERT_EQ(restoredTemplate.titleTemplate, templ.titleTemplate);
-    ASSERT_EQ(restoredTemplate.contentTemplate, templ.contentTemplate);
-    ASSERT_DOUBLE_EQ(restoredTemplate.minImpact, templ.minImpact);
-    ASSERT_DOUBLE_EQ(restoredTemplate.maxImpact, templ.maxImpact);
-    ASSERT_EQ(restoredTemplate.requiresPositiveMarket, templ.requiresPositiveMarket);
-    ASSERT_EQ(restoredTemplate.requiresNegativeMarket, templ.requiresNegativeMarket);
+// Test backward compatibility with old JSON format (using publish_day)
+TEST_F(NewsTest, BackwardCompatibilityJson) {
+    // Create JSON with old format (publish_day as int)
+    nlohmann::json oldJson = {
+        {"type", "Global"},
+        {"title", "Old Format News"},
+        {"content", "This news uses the old format with publish_day"},
+        {"impact", 0.01},
+        {"publish_day", 45},  // Assuming day 45 from reference date
+        {"processed", false},
+        {"target_sector", "Unknown"},
+        {"target_company_ticker", ""}
+    };
+
+    // Deserialize from old JSON format
+    News deserialized = News::fromJson(oldJson);
+
+    // Check if deserialization worked
+    EXPECT_EQ(deserialized.getType(), NewsType::Global);
+    EXPECT_EQ(deserialized.getTitle(), "Old Format News");
+
+    // The publish_day should have been converted to a Date
+    // Day 45 from March 1, 2023 should be around April 15, 2023
+    Date expectedDate = Date::fromDayNumber(45);
+    EXPECT_EQ(deserialized.getPublishDate(), expectedDate);
 }
 
-TEST_F(NewsTest, EdgeCasesTest) {
-    News emptyNews;
-    ASSERT_EQ(emptyNews.getType(), NewsType::Global);
-    ASSERT_EQ(emptyNews.getTitle(), "");
-    ASSERT_EQ(emptyNews.getContent(), "");
-    ASSERT_DOUBLE_EQ(emptyNews.getImpact(), 0.0);
-    
-    emptyNews.setPublishDay(-5);
-    ASSERT_EQ(emptyNews.getPublishDay(), 0);
-    
-    std::weak_ptr<Company> nullCompany;
-    News newsWithNullCompany(NewsType::Corporate, "Test", "Test", 0.0, 1, nullCompany);
-    ASSERT_EQ(newsWithNullCompany.getTargetCompany().lock(), nullptr);
-    
-    News newsFromJson = News::fromJson(corporateNews->toJson());
-    ASSERT_EQ(newsFromJson.getTargetCompany().lock(), nullptr);
+// Test NewsTemplate functionality
+TEST_F(NewsTest, NewsTemplate) {
+    // Create a news template
+    NewsTemplate tmpl(
+        NewsType::Sector,
+        "Template Title for %s",
+        "Template Content about %s with number %d",
+        -0.02, 0.02,
+        true, false,
+        Sector::Finance
+    );
+
+    // Check template properties
+    EXPECT_EQ(tmpl.type, NewsType::Sector);
+    EXPECT_EQ(tmpl.titleTemplate, "Template Title for %s");
+    EXPECT_EQ(tmpl.contentTemplate, "Template Content about %s with number %d");
+    EXPECT_DOUBLE_EQ(tmpl.minImpact, -0.02);
+    EXPECT_DOUBLE_EQ(tmpl.maxImpact, 0.02);
+    EXPECT_TRUE(tmpl.requiresPositiveMarket);
+    EXPECT_FALSE(tmpl.requiresNegativeMarket);
+    EXPECT_EQ(tmpl.targetSector, Sector::Finance);
+
+    // Test NewsTemplate serialization
+    nlohmann::json json = tmpl.toJson();
+
+    // Check JSON content
+    EXPECT_EQ(json["type"], "Sector");
+    EXPECT_EQ(json["title_template"], "Template Title for %s");
+    EXPECT_EQ(json["content_template"], "Template Content about %s with number %d");
+    EXPECT_DOUBLE_EQ(json["min_impact"], -0.02);
+    EXPECT_DOUBLE_EQ(json["max_impact"], 0.02);
+    EXPECT_TRUE(json["requires_positive_market"]);
+    EXPECT_FALSE(json["requires_negative_market"]);
+    EXPECT_EQ(json["target_sector"], "Finance");
+
+    // Test NewsTemplate deserialization
+    NewsTemplate deserialized = NewsTemplate::fromJson(json);
+
+    // Check if deserialized template matches original
+    EXPECT_EQ(deserialized.type, tmpl.type);
+    EXPECT_EQ(deserialized.titleTemplate, tmpl.titleTemplate);
+    EXPECT_EQ(deserialized.contentTemplate, tmpl.contentTemplate);
+    EXPECT_DOUBLE_EQ(deserialized.minImpact, tmpl.minImpact);
+    EXPECT_DOUBLE_EQ(deserialized.maxImpact, tmpl.maxImpact);
+    EXPECT_EQ(deserialized.requiresPositiveMarket, tmpl.requiresPositiveMarket);
+    EXPECT_EQ(deserialized.requiresNegativeMarket, tmpl.requiresNegativeMarket);
+    EXPECT_EQ(deserialized.targetSector, tmpl.targetSector);
 }

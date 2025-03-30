@@ -402,30 +402,41 @@ void Console::drawChart(int x, int y, int width, int height, const std::vector<d
     int dataHeight = height - 2;
     
     int numPoints = static_cast<int>(values.size());
-    int maxPointsToShow = dataWidth;
-    
-    int startIndex = (numPoints > maxPointsToShow) ? numPoints - maxPointsToShow : 0;
-    
+
     setColor(fg, TextColor::Default);
-    
-    for (int i = startIndex; i < numPoints; i++) {
-        double normalizedValue = (values[i] - minValue) / valueRange;
+
+    // Scale the data points to fill the chart width
+    for (int i = 0; i < dataWidth; i++) {
+        // Map chart x position to data index
+        double dataIndex = (numPoints <= 1) ? 0 : (i * (numPoints - 1.0)) / std::max(1.0, (dataWidth - 1.0));
+        int lowerIndex = static_cast<int>(dataIndex);
+        int upperIndex = std::min(lowerIndex + 1, numPoints - 1);
+        double fraction = dataIndex - lowerIndex;
+
+        // Interpolate between data points
+        double value;
+        if (lowerIndex == upperIndex || numPoints <= 1) {
+            value = values[lowerIndex];
+        } else {
+            value = values[lowerIndex] * (1.0 - fraction) + values[upperIndex] * fraction;
+        }
+
+        // Normalize and calculate height
+        double normalizedValue = (value - minValue) / valueRange;
         int pointHeight = static_cast<int>(normalizedValue * dataHeight);
         if (pointHeight < 0) pointHeight = 0;
         if (pointHeight > dataHeight) pointHeight = dataHeight;
-        
-        int pointX = x + 1 + (i - startIndex);
-        int pointY = y + dataHeight - pointHeight;
-        
+
+        int pointX = x + 1 + i;
+
         for (int j = 0; j < pointHeight; j++) {
             setCursorPosition(pointX, y + dataHeight - j);
             std::cout << "█";
         }
     }
-    
+
     resetAttributes();
 }
-
 void Console::drawProgressBar(int x, int y, int width, double progress, 
                             TextColor fg, TextColor bg) {
     initialize();

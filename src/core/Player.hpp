@@ -7,6 +7,7 @@
 #include "../models/Portfolio.hpp"
 #include "../models/Loan.hpp"
 #include "../models/Transaction.hpp"
+#include "../utils/Date.hpp"
 
 namespace StockMarketSimulator {
 
@@ -22,7 +23,7 @@ private:
     double marginInterestRate;
     double marginAvailable;
     double marginRequirement;
-    int currentDay;
+    Date currentDate;
     std::weak_ptr<Market> market;
 
     void updateMarginAvailable();
@@ -32,7 +33,7 @@ private:
 public:
     Player();
     Player(const std::string& name, double initialBalance = 10000.0);
-    
+
     std::string getName() const;
     Portfolio* getPortfolio() const;
     double getMarginAccountBalance() const;
@@ -44,11 +45,12 @@ public:
     double getTotalLiabilities() const;
     double getNetWorth() const;
     const std::vector<Loan>& getLoans() const;
+    Date getCurrentDate() const;
     int getCurrentDay() const;
-    
+
     void setName(const std::string& name);
     void setMarket(std::weak_ptr<Market> market);
-    void setCurrentDay(int day);
+    void setCurrentDate(const Date& date);
     
     bool buyStock(std::shared_ptr<Company> company, int quantity, bool useMargin = false);
     bool sellStock(std::shared_ptr<Company> company, int quantity);
