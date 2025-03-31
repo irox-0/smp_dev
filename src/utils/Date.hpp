@@ -13,8 +13,9 @@ namespace StockMarketSimulator {
         int year;
 
         void normalize();
-
         static const std::vector<int> daysInMonth;
+
+        int toAbsoluteDayNumber() const;
 
     public:
         Date(int d = 1, int m = 3, int y = 2023);

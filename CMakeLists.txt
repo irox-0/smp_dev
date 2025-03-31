@@ -66,9 +66,10 @@ enable_testing()
 include(GoogleTest)
 
 add_executable(utils_tests
-#        tests/utils/RandomTest.cpp
-#        tests/utils/ConsoleTest.cpp
-#        tests/utils/FileIOTest.cpp
+        tests/utils/RandomTest.cpp
+        tests/utils/ConsoleTest.cpp
+        tests/utils/FileIOTest.cpp
+        tests/utils/DateTest.cpp
 #        tests/models/CompanyTest.cpp
 #        tests/models/StockTest.cpp
 #        tests/models/DividedPolicyTest.cpp
@@ -80,7 +81,7 @@ add_executable(utils_tests
 #        tests/models/NewsTest.cpp
 #        tests/services/NewsServiceTest.cpp
 #        tests/services/PriceServiceTest.cpp
-        tests/services/SaveServiceTest.cpp
+#        tests/services/SaveServiceTest.cpp
 #        tests/ui/widgets/ChartTest.cpp
 #        tests/ui/widgets/MenuTest.cpp
 #        tests/ui/widgets/TableTest.cpp

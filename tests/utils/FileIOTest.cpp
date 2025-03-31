@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include "utils/FileIO.hpp"
+#include "../../src/utils/FileIO.hpp"
 
 using namespace StockMarketSimulator;
 

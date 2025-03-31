@@ -405,15 +405,12 @@ void Console::drawChart(int x, int y, int width, int height, const std::vector<d
 
     setColor(fg, TextColor::Default);
 
-    // Scale the data points to fill the chart width
     for (int i = 0; i < dataWidth; i++) {
-        // Map chart x position to data index
         double dataIndex = (numPoints <= 1) ? 0 : (i * (numPoints - 1.0)) / std::max(1.0, (dataWidth - 1.0));
         int lowerIndex = static_cast<int>(dataIndex);
         int upperIndex = std::min(lowerIndex + 1, numPoints - 1);
         double fraction = dataIndex - lowerIndex;
 
-        // Interpolate between data points
         double value;
         if (lowerIndex == upperIndex || numPoints <= 1) {
             value = values[lowerIndex];
@@ -421,7 +418,6 @@ void Console::drawChart(int x, int y, int width, int height, const std::vector<d
             value = values[lowerIndex] * (1.0 - fraction) + values[upperIndex] * fraction;
         }
 
-        // Normalize and calculate height
         double normalizedValue = (value - minValue) / valueRange;
         int pointHeight = static_cast<int>(normalizedValue * dataHeight);
         if (pointHeight < 0) pointHeight = 0;

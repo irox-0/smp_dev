@@ -1,5 +1,4 @@
 #include "Date.hpp"
-#include "Date.hpp"
 #include <sstream>
 #include <iomanip>
 #include <cmath>
@@ -130,11 +129,10 @@ bool Date::operator>=(const Date& other) const {
 }
 
 int Date::daysBetween(const Date& other) const {
-    Date refDate(1, 1, 2000);
-    int thisDayNum = this->toDayNumber(refDate);
-    int otherDayNum = other.toDayNumber(refDate);
+    int thisAbsDay = this->toAbsoluteDayNumber();
+    int otherAbsDay = other.toAbsoluteDayNumber();
 
-    return otherDayNum - thisDayNum;
+    return otherAbsDay - thisAbsDay;
 }
 
 bool Date::isLeapYear(int y) const {
@@ -150,31 +148,37 @@ int Date::getDaysInMonth(int m, int y) const {
 
 Date Date::fromDayNumber(int dayNumber, const Date& startDate) {
     Date result = startDate;
+
+    if (dayNumber == 1) {
+        return result;
+    }
+
     result.advanceDays(dayNumber - 1);
     return result;
 }
 
 int Date::toDayNumber(const Date& startDate) const {
+    if (*this == startDate) {
+        return 1;
+    }
+
     if (*this < startDate) {
-        return -startDate.daysBetween(*this);
+        return -(startDate.daysBetween(*this) - 1);
     }
 
-    int days = 0;
-    Date temp = startDate;
+    return startDate.daysBetween(*this) + 1;
+}
 
-    while (temp.year < year) {
-        days += isLeapYear(temp.year) ? 366 : 365;
-        temp.year++;
+int Date::toAbsoluteDayNumber() const {
+    int y = year;
+    int m = month;
+    if (m < 3) {
+        y--;
+        m += 12;
     }
 
-    while (temp.month < month) {
-        days += getDaysInMonth(temp.month, temp.year);
-        temp.month++;
-    }
-
-    days += day - temp.day;
-
-    return days + 1; // +1 because day 1 is startDate
+    int dayNumber = 365 * y + y/4 - y/100 + y/400 + (153*m - 457)/5 + day - 306;
+    return dayNumber;
 }
 
 nlohmann::json Date::toJson() const {
@@ -189,4 +193,4 @@ Date Date::fromJson(const nlohmann::json& json) {
     return Date(json["day"], json["month"], json["year"]);
 }
 
-} // namespace StockMarketSimulator
+}

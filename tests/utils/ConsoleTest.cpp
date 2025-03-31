@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include "utils/Console.hpp"
+#include "../../src/utils/Console.hpp"
 #include <sstream>
 
 using namespace StockMarketSimulator;

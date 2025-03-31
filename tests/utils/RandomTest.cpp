@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include "utils/Random.hpp"
+#include "../../src/utils/Random.hpp"
 
 using namespace StockMarketSimulator;
 
