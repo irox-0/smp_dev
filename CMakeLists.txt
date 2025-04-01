@@ -66,10 +66,10 @@ enable_testing()
 include(GoogleTest)
 
 add_executable(utils_tests
-        tests/utils/RandomTest.cpp
-        tests/utils/ConsoleTest.cpp
-        tests/utils/FileIOTest.cpp
-        tests/utils/DateTest.cpp
+#        tests/utils/RandomTest.cpp
+#        tests/utils/ConsoleTest.cpp
+#        tests/utils/FileIOTest.cpp
+#        tests/utils/DateTest.cpp
 #        tests/models/CompanyTest.cpp
 #        tests/models/StockTest.cpp
 #        tests/models/DividedPolicyTest.cpp
@@ -92,6 +92,7 @@ add_executable(utils_tests
 #        tests/ui/screens/FinancialScreenTest.cpp
 #        tests/ui/screens/CompanyScreenTest.cpp
 #        tests/ui/screens/MarketCompanyIntegrationTest.cpp
+        tests/ui/screens/PortfolioScreenTest.cpp
 )
 
 target_link_libraries(utils_tests
