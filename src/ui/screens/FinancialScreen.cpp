@@ -322,6 +322,10 @@ void FinancialScreen::drawNavigationOptions() const {
 
     Console::setCursorPosition(x + 1, y + 28);
     Console::print("0. Return to Main Menu");
+
+
+    Console::setCursorPosition(x + 2, height - 1);
+    Console::print("Choose action: ");
 }
 
 bool FinancialScreen::handleInput(int key) {

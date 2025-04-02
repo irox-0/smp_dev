@@ -307,6 +307,10 @@ void CompanyScreen::drawActions() const {
     Console::setCursorPosition(x + 2, actionY + 2);
     Console::print("3. Return to Market");
 
+
+    Console::setCursorPosition(x + 2, height - 1);
+    Console::print("Choose action: ");
+
 }
 
 bool CompanyScreen::handleInput(int key) {

@@ -274,6 +274,10 @@ void PortfolioScreen::drawNavigationOptions() const {
     Console::setCursorPosition(x + 2, currentY + 2);
     Console::print("3. Return to Main Menu");
 
+
+    Console::setCursorPosition(x + 2,   height - 1);
+    Console::print("Choose action: ");
+
 }
 
 bool PortfolioScreen::handleInput(int key) {

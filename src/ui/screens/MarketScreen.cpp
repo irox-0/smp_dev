@@ -191,6 +191,10 @@ void MarketScreen::drawNavigationOptions() const {
     Console::setCursorPosition(x, y + 32);
 
 
+    Console::setCursorPosition(x + 2, height - 1);
+    Console::print("Choose action: ");
+
+
 }
 bool MarketScreen::handleInput(int key) {
     if (key >= '1' && key <= '9') {

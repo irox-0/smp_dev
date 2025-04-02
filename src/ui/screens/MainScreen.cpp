@@ -1,0 +1,412 @@
+#include "MainScreen.hpp"
+#include <algorithm>
+#include <sstream>
+#include <iomanip>
+#include <cmath>
+
+namespace StockMarketSimulator {
+
+MainScreen::MainScreen()
+    : Screen("STOCK PLAYER - MAIN MENU", ScreenType::Main)
+{
+    setSize(46, 31);
+}
+
+void MainScreen::setNewsService(std::weak_ptr<NewsService> newsService) {
+    this->newsService = newsService;
+}
+
+std::weak_ptr<NewsService> MainScreen::getNewsService() const {
+    return newsService;
+}
+
+void MainScreen::initialize() {
+    Screen::initialize();
+    update();
+}
+
+void MainScreen::update() {
+    Screen::update();
+    updateTopStocks();
+    updateLatestNews();
+}
+
+void MainScreen::updateTopStocks() {
+    auto marketPtr = market.lock();
+    if (!marketPtr) {
+        topStocks.clear();
+        return;
+    }
+
+    const auto& companies = marketPtr->getCompanies();
+    if (companies.empty()) {
+        topStocks.clear();
+        return;
+    }
+
+    topStocks = companies;
+    std::sort(topStocks.begin(), topStocks.end(),
+              [](const auto& a, const auto& b) {
+                  double changeA = a->getStock()->getDayChangePercent();
+                  double changeB = b->getStock()->getDayChangePercent();
+                  return changeA > changeB; // Descending order
+              });
+
+    if (topStocks.size() > 5) {
+        topStocks.resize(5);
+    }
+}
+
+void MainScreen::updateLatestNews() {
+    auto newsServicePtr = newsService.lock();
+    if (!newsServicePtr) {
+        latestNews.clear();
+        return;
+    }
+
+    latestNews = newsServicePtr->getLatestNews(2);
+}
+
+void MainScreen::drawContent() const {
+    drawDateAndMarket();
+    drawPlayerInfo();
+    drawTopStocks();
+    drawLatestNews();
+    drawNavigationMenu();
+}
+
+void MainScreen::drawDateAndMarket() const {
+    auto marketPtr = market.lock();
+    if (!marketPtr) {
+        return;
+    }
+
+    int currentY = y + 2;
+
+    Console::setCursorPosition(x + 2, currentY);
+    Console::setColor(bodyFg, bodyBg);
+    Console::print("Date: ");
+    Console::setColor(TextColor::Yellow, bodyBg);
+
+    Date currentDate = marketPtr->getCurrentDate();
+    int currentDay = marketPtr->getCurrentDay();
+
+    std::stringstream dateStr;
+    dateStr << currentDate.getDay() << "." << std::setfill('0') << std::setw(2) << currentDate.getMonth() << "." << currentDate.getYear();
+    dateStr << " Day: " << currentDay;
+
+    Console::print(dateStr.str());
+    currentY += 1;
+
+    Console::setCursorPosition(x + 2, currentY);
+    Console::setColor(bodyFg, bodyBg);
+    Console::print("Market Index: ");
+
+    double indexValue = marketPtr->getMarketIndex();
+    double dailyChange = marketPtr->getState().dailyChange;
+
+    std::stringstream indexStr;
+    indexStr << std::fixed << std::setprecision(2) << indexValue;
+    Console::setColor(TextColor::White, bodyBg);
+    Console::print(indexStr.str());
+
+    if (dailyChange >= 0) {
+        Console::setColor(TextColor::Green, bodyBg);
+        indexStr.str("");
+        indexStr << " (+" << std::fixed << std::setprecision(2) << dailyChange << ")";
+    } else {
+        Console::setColor(TextColor::Red, bodyBg);
+        indexStr.str("");
+        indexStr << " (" << std::fixed << std::setprecision(2) << dailyChange << ")";
+    }
+    Console::print(indexStr.str());
+    currentY += 1;
+
+    Console::setCursorPosition(x + 2, currentY);
+    Console::setColor(bodyFg, bodyBg);
+    Console::print("Trend: ");
+
+    MarketTrend trend = marketPtr->getCurrentTrend();
+    std::string trendName = marketPtr->getTrendName();
+
+    if (trend == MarketTrend::Bullish) {
+        Console::setColor(TextColor::Green, bodyBg);
+    } else if (trend == MarketTrend::Bearish) {
+        Console::setColor(TextColor::Red, bodyBg);
+    } else if (trend == MarketTrend::Volatile) {
+        Console::setColor(TextColor::Yellow, bodyBg);
+    } else {
+        Console::setColor(TextColor::Cyan, bodyBg);
+    }
+    Console::print(trendName);
+
+    Console::setCursorPosition(x, y + 5);
+    Console::setColor(bodyFg, bodyBg);
+    Console::drawHorizontalLine(x, y + 5, width);
+}
+
+void MainScreen::drawPlayerInfo() const {
+    auto playerPtr = player.lock();
+    if (!playerPtr) {
+        return;
+    }
+
+    int currentY = y + 6;
+
+    Console::setCursorPosition(x + 2, currentY);
+    Console::setColor(bodyFg, bodyBg);
+    Console::print("Your Capital: ");
+    Console::setColor(TextColor::Green, bodyBg);
+
+    double cashBalance = playerPtr->getPortfolio()->getCashBalance();
+    std::stringstream cashStr;
+    cashStr << std::fixed << std::setprecision(2) << cashBalance << "$";
+    Console::print(cashStr.str());
+    currentY += 1;
+
+    Console::setCursorPosition(x + 2, currentY);
+    Console::setColor(bodyFg, bodyBg);
+    Console::print("Portfolio Value: ");
+    Console::setColor(TextColor::Cyan, bodyBg);
+
+    double portfolioValue = playerPtr->getPortfolio()->getTotalStocksValue();
+    std::stringstream portfolioStr;
+    portfolioStr << std::fixed << std::setprecision(2) << portfolioValue << "$";
+    Console::print(portfolioStr.str());
+    currentY += 1;
+
+    Console::setCursorPosition(x + 2, currentY);
+    Console::setColor(bodyFg, bodyBg);
+    Console::print("Total Asset Value: ");
+    Console::setColor(TextColor::Yellow, bodyBg);
+
+    double totalAssets = playerPtr->getTotalAssetValue();
+    std::stringstream assetsStr;
+    assetsStr << std::fixed << std::setprecision(2) << totalAssets << "$";
+    Console::print(assetsStr.str());
+
+    Console::setCursorPosition(x, y + 9);
+    Console::setColor(bodyFg, bodyBg);
+    Console::drawHorizontalLine(x, y + 9, width);
+}
+
+void MainScreen::drawTopStocks() const {
+    Console::setCursorPosition(x + 2, y + 10);
+    Console::setColor(TextColor::White, bodyBg);
+    Console::setStyle(TextStyle::Bold);
+    Console::print("TOP STOCKS TODAY:");
+    Console::setStyle(TextStyle::Regular);
+
+    if (topStocks.empty()) {
+        Console::setCursorPosition(x + 2, y + 12);
+        Console::setColor(bodyFg, bodyBg);
+        Console::print("No stock data available.");
+        return;
+    }
+
+    int currentY = y + 11;
+    for (size_t i = 0; i < topStocks.size(); i++) {
+        const auto& company = topStocks[i];
+        double changePercent = company->getStock()->getDayChangePercent();
+
+        currentY += 1;
+        Console::setCursorPosition(x + 2, currentY);
+        Console::setColor(bodyFg, bodyBg);
+        Console::print(std::to_string(i + 1) + ". " + company->getName() + " ");
+
+        std::stringstream changeStr;
+        if (changePercent >= 0) {
+            Console::setColor(TextColor::Green, bodyBg);
+            changeStr << "+" << std::fixed << std::setprecision(2) << changePercent << "%";
+        } else {
+            Console::setColor(TextColor::Red, bodyBg);
+            changeStr << std::fixed << std::setprecision(2) << changePercent << "%";
+        }
+        Console::print(changeStr.str());
+    }
+
+    int separatorY = y + 11 + topStocks.size() + 1;
+    Console::setCursorPosition(x, separatorY);
+    Console::setColor(bodyFg, bodyBg);
+    Console::drawHorizontalLine(x, separatorY, width);
+}
+
+void MainScreen::drawLatestNews() const {
+    int newsY = y + 18;
+
+    Console::setCursorPosition(x + 2, newsY);
+    Console::setColor(TextColor::White, bodyBg);
+    Console::setStyle(TextStyle::Bold);
+    Console::print("LATEST NEWS:");
+    Console::setStyle(TextStyle::Regular);
+    newsY += 1;
+
+    if (latestNews.empty()) {
+        newsY += 1;
+        Console::setCursorPosition(x + 2, newsY);
+        Console::setColor(bodyFg, bodyBg);
+        Console::print("No news available.");
+        return;
+    }
+
+    for (const auto& news : latestNews) {
+        newsY += 1;
+        Console::setCursorPosition(x + 2, newsY);
+        Console::setColor(TextColor::Cyan, bodyBg);
+        Console::print("- " + news.getTitle());
+    }
+
+    int separatorY = newsY + 2;
+    Console::setCursorPosition(x, separatorY);
+    Console::setColor(bodyFg, bodyBg);
+    Console::drawHorizontalLine(x, separatorY, width);
+}
+
+void MainScreen::drawNavigationMenu() const {
+    int menuY = y + 23;
+
+    Console::setCursorPosition(x + 2, menuY);
+    Console::setColor(bodyFg, bodyBg);
+    Console::print("");
+    menuY += 1;
+
+    Console::setCursorPosition(x + 2, menuY);
+    Console::print("1. Stock Market");
+    menuY += 1;
+
+    Console::setCursorPosition(x + 2, menuY);
+    Console::print("2. My Portfolio");
+    menuY += 1;
+
+    Console::setCursorPosition(x + 2, menuY);
+    Console::print("3. News");
+    menuY += 1;
+
+    Console::setCursorPosition(x + 2, menuY);
+    Console::print("4. Financial Instruments");
+    menuY += 1;
+
+    Console::setCursorPosition(x + 2, menuY);
+    Console::print("5. Save/Load");
+    menuY += 1;
+
+    Console::setCursorPosition(x + 2, menuY);
+    Console::print("0. Exit");
+    menuY += 2;
+
+    // Prompt
+    Console::setCursorPosition(x + 2, menuY - 1);
+    Console::print("Choose action: ");
+}
+
+bool MainScreen::handleInput(int key) {
+    switch (key) {
+        case '1':
+            openMarketScreen();
+            return true;
+
+        case '2':
+            openPortfolioScreen();
+            return true;
+
+        case '3':
+            openNewsScreen();
+            return true;
+
+        case '4':
+            openFinancialScreen();
+            return true;
+
+        case '5':
+            openSaveLoadScreen();
+            return true;
+
+        case '0':
+        case 27:
+            close();
+            return false;
+
+        default:
+            return Screen::handleInput(key);
+    }
+}
+
+void MainScreen::openMarketScreen() const {
+    auto marketScreen = std::make_shared<MarketScreen>();
+    marketScreen->setMarket(market);
+    marketScreen->setPlayer(player);
+    marketScreen->setNewsService(newsService);
+
+    marketScreen->setPosition(x, y);
+
+    marketScreen->initialize();
+    marketScreen->run();
+    Console::clear();
+    draw();
+}
+
+void MainScreen::openPortfolioScreen() const {
+    auto portfolioScreen = std::make_shared<PortfolioScreen>();
+    portfolioScreen->setMarket(market);
+    portfolioScreen->setPlayer(player);
+
+    portfolioScreen->setPosition(x, y);
+
+    portfolioScreen->initialize();
+    portfolioScreen->run();
+    Console::clear();
+    draw();
+}
+
+void MainScreen::openNewsScreen() const {
+    auto newsScreen = std::make_shared<NewsScreen>();
+    newsScreen->setMarket(market);
+    newsScreen->setPlayer(player);
+    newsScreen->setNewsService(newsService);
+
+    newsScreen->setPosition(x, y);
+
+    newsScreen->initialize();
+    newsScreen->run();
+    Console::clear();
+    draw();
+}
+
+void MainScreen::openFinancialScreen() const {
+    auto financialScreen = std::make_shared<FinancialScreen>();
+    financialScreen->setMarket(market);
+    financialScreen->setPlayer(player);
+    Console::clear();
+    financialScreen->setPosition(x, y);
+
+    financialScreen->initialize();
+    financialScreen->run();
+    Console::clear();
+    draw();
+}
+
+void MainScreen::openSaveLoadScreen() const {
+    int messageY = y + height / 2;
+
+    for (int i = -2; i <= 2; i++) {
+        Console::setCursorPosition(x + 2, messageY + i);
+        Console::setColor(bodyFg, bodyBg);
+        Console::print(std::string(width - 4, ' '));
+    }
+
+    Console::setCursorPosition(x + width/2 - 10, messageY - 1);
+    Console::setColor(TextColor::Yellow, bodyBg);
+    Console::print("Save/Load Functionality");
+
+    Console::setCursorPosition(x + width/2 - 16, messageY);
+    Console::setColor(bodyFg, bodyBg);
+    Console::print("This feature is not implemented yet");
+
+    Console::setCursorPosition(x + width/2 - 13, messageY + 2);
+    Console::print("Press any key to continue...");
+
+    Console::readChar();
+    draw();
+}
+
+}

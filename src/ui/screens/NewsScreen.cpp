@@ -205,6 +205,10 @@ void NewsScreen::drawNavigationOptions() const {
 
     Console::setCursorPosition(x + 2, optionsY + 7);
     Console::print("0. Return to Main Menu");
+
+
+    Console::setCursorPosition(x + 2, height - 1);
+    Console::print("Choose action: ");
 }
 
 bool NewsScreen::handleInput(int key) {
@@ -402,7 +406,7 @@ void NewsScreen::changeFilter() {
 
         Console::setCursorPosition(x + 2, menuY + static_cast<int>(options.size()) + 1);
         Console::setColor(bodyFg, bodyBg);
-        Console::print("Press Enter to select or Esc to cancel");
+      //  Console::print("Press Enter to select or Esc to cancel");
 
         Console::resetAttributes();
 
