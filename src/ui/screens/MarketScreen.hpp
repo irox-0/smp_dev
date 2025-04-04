@@ -52,11 +52,9 @@ namespace StockMarketSimulator {
         void changeSortCriteria();
         void toggleSortDirection();
 
-        // Added methods for NewsService
         void setNewsService(std::weak_ptr<NewsService> newsService);
         std::weak_ptr<NewsService> getNewsService() const;
 
-        // Getter for displayedCompanies (for testing)
         const std::vector<std::shared_ptr<Company>>& getCompanies() const;
     };
 

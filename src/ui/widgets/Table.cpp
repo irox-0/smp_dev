@@ -276,12 +276,11 @@ int Table::calculateTableHeight() const {
 
     int numDataRows = static_cast<int>(data.size());
 
-    // Calculate the table's height (accounting for all rows, separators, and borders)
     int tableHeight;
     if (!headers.empty()) {
-        tableHeight = 3 + (2 * numDataRows); // Top border, header, separator, rows with separators, bottom border
+        tableHeight = 3 + (2 * numDataRows);
     } else {
-        tableHeight = 1 + (2 * numDataRows); // Top border, rows with separators, bottom border
+        tableHeight = 1 + (2 * numDataRows);
     }
     //int rowCount = static_cast<int>(data.size());
     return tableHeight;

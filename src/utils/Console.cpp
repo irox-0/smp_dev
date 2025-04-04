@@ -22,29 +22,21 @@ bool Console::termiosSet = false;
 
 void Console::setupTerminalMode() {
     if (!termiosSet) {
-        // Get original terminal settings
         tcgetattr(STDIN_FILENO, &originalTermios);
         termiosSet = true;
 
-        // Create a copy for the new settings
         struct termios raw = originalTermios;
 
-        // Modify settings for raw mode
-        // ECHO: Don't echo input characters
-        // ICANON: Disable canonical mode (line-by-line input)
-        // ISIG: Disable signals like Ctrl+C, Ctrl+Z
-        raw.c_lflag &= ~(ECHO | ICANON | ISIG);
+        raw.c_lflag &= ~(ECHO | ICANON | ISIG | IEXTEN);
 
-        // IXON: Disable software flow control (Ctrl+S, Ctrl+Q)
-        // ICRNL: Don't translate carriage return to newline
-        raw.c_iflag &= ~(IXON | ICRNL);
+        raw.c_iflag &= ~(IXON | ICRNL | INPCK | ISTRIP);
 
-        // Timeout for read() - make it return immediately
-        raw.c_cc[VMIN] = 0;  // Minimum number of characters to read
-        raw.c_cc[VTIME] = 0; // Timeout in deciseconds
+        raw.c_oflag &= ~(OPOST);
 
-        // Apply the new settings
-        tcsetattr(STDIN_FILENO, TCSANOW, &raw);
+        raw.c_cc[VMIN] = 0;
+        raw.c_cc[VTIME] = 0;
+
+        tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
     }
 }
 
@@ -92,8 +84,6 @@ void Console::initializeConsole() {
     SetConsoleOutputCP(CP_UTF8);
     SetConsoleCP(CP_UTF8);
 #else
-    // For Unix-like systems, we use ANSI escape sequences which require no initialization
-    // but we need to set up the terminal for proper input handling
     setupTerminalMode();
 #endif
     isInitialized = true;
@@ -189,7 +179,6 @@ std::string Console::readLine() {
     initialize();
 
 #ifndef _WIN32
-    // Temporarily restore canonical mode for readLine
     restoreTerminalMode();
 #endif
 
@@ -197,7 +186,6 @@ std::string Console::readLine() {
     std::getline(std::cin, input);
 
 #ifndef _WIN32
-    // Go back to raw mode after reading
     setupTerminalMode();
 #endif
 
@@ -209,10 +197,17 @@ bool Console::keyPressed() {
 #ifdef _WIN32
     return _kbhit() != 0;
 #else
-    // Set up file descriptor for non-blocking input
-    int bytesWaiting;
-    ioctl(STDIN_FILENO, FIONREAD, &bytesWaiting);
-    return bytesWaiting > 0;
+    fd_set readfds;
+    FD_ZERO(&readfds);
+    FD_SET(STDIN_FILENO, &readfds);
+
+    struct timeval tv;
+    tv.tv_sec = 0;
+    tv.tv_usec = 0;
+
+    int result = select(STDIN_FILENO + 1, &readfds, NULL, NULL, &tv);
+
+    return (result > 0);
 #endif
 }
 
@@ -221,32 +216,48 @@ char Console::readChar() {
 #ifdef _WIN32
     return _getch();
 #else
-    // Read a single character from stdin
     char c = 0;
+
+    fd_set readfds;
+    FD_ZERO(&readfds);
+    FD_SET(STDIN_FILENO, &readfds);
+
+    select(STDIN_FILENO + 1, &readfds, NULL, NULL, NULL);
+
     if (read(STDIN_FILENO, &c, 1) < 0) {
         return 0;
     }
 
-    // Check for escape sequences
-    if (c == 27) { // ESC character
-        // Read next two characters to check for arrow keys
-        char seq[2];
-        if (read(STDIN_FILENO, &seq[0], 1) != 1) return c;
-        if (read(STDIN_FILENO, &seq[1], 1) != 1) return c;
+    if (c == 27) {
+        struct timeval tv;
+        tv.tv_sec = 0;
+        tv.tv_usec = 100000;
 
-        // Process arrow keys
-        if (seq[0] == '[') {
-            switch (seq[1]) {
-                case 'A': return static_cast<char>(Key::ArrowUp);
-                case 'B': return static_cast<char>(Key::ArrowDown);
-                case 'C': return static_cast<char>(Key::ArrowRight);
-                case 'D': return static_cast<char>(Key::ArrowLeft);
+        FD_ZERO(&readfds);
+        FD_SET(STDIN_FILENO, &readfds);
+        int result = select(STDIN_FILENO + 1, &readfds, NULL, NULL, &tv);
+
+        if (result > 0) {
+            char seq[2] = {0, 0};
+            if (read(STDIN_FILENO, &seq[0], 1) == 1) {
+                if (seq[0] == '[') {
+                    if (select(STDIN_FILENO + 1, &readfds, NULL, NULL, &tv) > 0) {
+                        if (read(STDIN_FILENO, &seq[1], 1) == 1) {
+                            switch (seq[1]) {
+                                case 'A': return static_cast<char>(Key::ArrowUp);
+                                case 'B': return static_cast<char>(Key::ArrowDown);
+                                case 'C': return static_cast<char>(Key::ArrowRight);
+                                case 'D': return static_cast<char>(Key::ArrowLeft);
+                            }
+                        }
+                    }
+                }
             }
         }
-        return c; // Return ESC if not an arrow key
+
+        return static_cast<char>(Key::Escape);
     }
 
-    // Map Enter key
     if (c == 10) {
         return static_cast<char>(Key::Enter);
     }
@@ -369,26 +380,37 @@ int Console::showMenu(int x, int y, const std::vector<std::string>& options,
         return -1;
     }
 
+    size_t maxWidth = 0;
+    for (const auto& option : options) {
+        maxWidth = std::max(maxWidth, option.length());
+    }
+
+    int menuWidth = static_cast<int>(maxWidth) + 4;
     int selected = 0;
     bool running = true;
+    std::string buffer;
 
     while (running) {
+        buffer.clear();
+
         for (size_t i = 0; i < options.size(); i++) {
-            setCursorPosition(x, y + static_cast<int>(i));
+            buffer += "\033[" + std::to_string(y + static_cast<int>(i) + 1) + ";" + std::to_string(x + 1) + "H";
 
             if (i == static_cast<size_t>(selected)) {
-                setColor(selectedFg, selectedBg);
-                std::cout << "> " << options[i];
+                buffer += getAnsiColorCode(selectedFg, selectedBg, TextStyle::Regular);
+                buffer += "> " + options[i];
+                buffer += std::string(menuWidth - options[i].length() - 2, ' ');
             } else {
-                setColor(normalFg, normalBg);
-                std::cout << "  " << options[i];
+                // Normal item formatting
+                buffer += getAnsiColorCode(normalFg, normalBg, TextStyle::Regular);
+                buffer += "  " + options[i];
+                buffer += std::string(menuWidth - options[i].length() - 2, ' ');
             }
-
-            int menuWidth = static_cast<int>(options[i].length()) + 2;
-            std::cout << std::string(getSize().first - x - menuWidth, ' ');
         }
 
-        resetAttributes();
+        buffer += getAnsiColorCode(TextColor::Default, TextColor::Default, TextStyle::Regular);
+
+        std::cout << buffer << std::flush;
 
         char key = readChar();
 
@@ -411,6 +433,9 @@ int Console::showMenu(int x, int y, const std::vector<std::string>& options,
             default:
                 if (key >= '0' && key <= '9') {
                     int index = key - '0';
+                    if (index == 0) index = 10;
+                    index--;
+
                     if (index >= 0 && index < static_cast<int>(options.size())) {
                         return index;
                     }
