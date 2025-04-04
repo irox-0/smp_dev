@@ -17,19 +17,24 @@ TextColor Console::currentBgColor = TextColor::Default;
 TextStyle Console::currentStyle = TextStyle::Regular;
 bool Console::isInitialized = false;
 
+#ifdef USE_NCURSES
+bool Console::ncursesInitialized = false;
+WINDOW* Console::inputWindow = nullptr;
+#endif
+
 std::string Console::getAnsiColorCode(TextColor fg, TextColor bg, TextStyle style) {
     std::string code = "\033[";
-    
+
     switch (style) {
         case TextStyle::Bold: code += "1;"; break;
         case TextStyle::Underline: code += "4;"; break;
         default: code += "0;"; break;
     }
-    
+
     if (fg != TextColor::Default) {
         code += std::to_string(30 + static_cast<int>(fg)) + ";";
     }
-    
+
     if (bg != TextColor::Default) {
         code += std::to_string(40 + static_cast<int>(bg));
     } else {
@@ -37,10 +42,49 @@ std::string Console::getAnsiColorCode(TextColor fg, TextColor bg, TextStyle styl
             code.pop_back();
         }
     }
-    
+
     code += "m";
     return code;
 }
+
+#ifdef USE_NCURSES
+void Console::initializeNcurses() {
+    if (!ncursesInitialized) {
+        // Initialize ncurses for input handling only
+        inputWindow = initscr();
+        cbreak();             // Line buffering disabled
+        noecho();             // Don't echo keypresses
+        keypad(inputWindow, TRUE);  // Enable function keys, arrow keys, etc.
+        nodelay(inputWindow, TRUE); // Non-blocking input
+
+        // Start with ncurses raw mode for proper key handling
+        raw();
+
+        ncursesInitialized = true;
+    }
+}
+
+void Console::cleanupNcurses() {
+    if (ncursesInitialized) {
+        endwin();
+        ncursesInitialized = false;
+    }
+}
+
+char Console::translateNcursesKey(int key) {
+    switch (key) {
+        case KEY_UP:    return static_cast<char>(Key::ArrowUp);
+        case KEY_DOWN:  return static_cast<char>(Key::ArrowDown);
+        case KEY_LEFT:  return static_cast<char>(Key::ArrowLeft);
+        case KEY_RIGHT: return static_cast<char>(Key::ArrowRight);
+        case KEY_ENTER: // Fall through
+        case '\n':      return static_cast<char>(Key::Enter);
+        case 27:        return static_cast<char>(Key::Escape);
+        case ' ':       return static_cast<char>(Key::Space);
+        default:        return static_cast<char>(key);
+    }
+}
+#endif
 
 void Console::initializeConsole() {
 #ifdef _WIN32
@@ -49,10 +93,13 @@ void Console::initializeConsole() {
     GetConsoleMode(hOut, &dwMode);
     dwMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
     SetConsoleMode(hOut, dwMode);
-    
+
     SetConsoleOutputCP(CP_UTF8);
     SetConsoleCP(CP_UTF8);
 #else
+#ifdef USE_NCURSES
+    initializeNcurses();
+#endif
 #endif
     isInitialized = true;
 }
@@ -63,18 +110,42 @@ void Console::initialize() {
     }
 }
 
+void Console::cleanup() {
+#ifdef USE_NCURSES
+    cleanupNcurses();
+#endif
+}
+
 void Console::clear() {
     initialize();
 #ifdef _WIN32
     system("cls");
 #else
+#ifdef USE_NCURSES
+    if (ncursesInitialized) {
+        erase();
+        refresh();
+    } else {
+        std::cout << "\033[2J\033[H";
+    }
+#else
     std::cout << "\033[2J\033[H";
+#endif
 #endif
 }
 
 void Console::setCursorPosition(int x, int y) {
     initialize();
+#ifdef USE_NCURSES
+    if (ncursesInitialized) {
+        move(y, x);
+        refresh();
+    } else {
+        std::cout << "\033[" << y + 1 << ";" << x + 1 << "H";
+    }
+#else
     std::cout << "\033[" << y + 1 << ";" << x + 1 << "H";
+#endif
 }
 
 std::pair<int, int> Console::getSize() {
@@ -90,11 +161,23 @@ std::pair<int, int> Console::getSize() {
         height = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
     }
 #else
+#ifdef USE_NCURSES
+    if (ncursesInitialized) {
+        getmaxyx(stdscr, height, width);
+    } else {
+        struct winsize w;
+        if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) != -1) {
+            width = w.ws_col;
+            height = w.ws_row;
+        }
+    }
+#else
     struct winsize w;
     if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) != -1) {
         width = w.ws_col;
         height = w.ws_row;
     }
+#endif
 #endif
 
     return {width, height};
@@ -104,7 +187,43 @@ void Console::setColor(TextColor fg, TextColor bg) {
     initialize();
     currentFgColor = fg;
     currentBgColor = bg;
+#ifdef USE_NCURSES
+    if (ncursesInitialized) {
+        // Map our color enums to ncurses colors
+        short ncursesFg = COLOR_WHITE;
+        short ncursesBg = COLOR_BLACK;
+
+        switch (fg) {
+            case TextColor::Black: ncursesFg = COLOR_BLACK; break;
+            case TextColor::Red: ncursesFg = COLOR_RED; break;
+            case TextColor::Green: ncursesFg = COLOR_GREEN; break;
+            case TextColor::Yellow: ncursesFg = COLOR_YELLOW; break;
+            case TextColor::Blue: ncursesFg = COLOR_BLUE; break;
+            case TextColor::Magenta: ncursesFg = COLOR_MAGENTA; break;
+            case TextColor::Cyan: ncursesFg = COLOR_CYAN; break;
+            case TextColor::White: ncursesFg = COLOR_WHITE; break;
+            default: ncursesFg = COLOR_WHITE; break;
+        }
+
+        switch (bg) {
+            case TextColor::Black: ncursesBg = COLOR_BLACK; break;
+            case TextColor::Red: ncursesBg = COLOR_RED; break;
+            case TextColor::Green: ncursesBg = COLOR_GREEN; break;
+            case TextColor::Yellow: ncursesBg = COLOR_YELLOW; break;
+            case TextColor::Blue: ncursesBg = COLOR_BLUE; break;
+            case TextColor::Magenta: ncursesBg = COLOR_MAGENTA; break;
+            case TextColor::Cyan: ncursesBg = COLOR_CYAN; break;
+            case TextColor::White: ncursesBg = COLOR_WHITE; break;
+            default: ncursesBg = COLOR_BLACK; break;
+        }
+
+        // In a real implementation, we would initialize color pairs
+        // and use them here. For simplicity, we'll just output ANSI codes
+    }
     std::cout << getAnsiColorCode(fg, bg, currentStyle);
+#else
+    std::cout << getAnsiColorCode(fg, bg, currentStyle);
+#endif
 }
 
 void Console::setStyle(TextStyle style) {
@@ -149,28 +268,63 @@ bool Console::keyPressed() {
 #ifdef _WIN32
     return _kbhit() != 0;
 #else
+#ifdef USE_NCURSES
+    if (ncursesInitialized) {
+        int ch = getch();
+        if (ch != ERR) {
+            ungetch(ch);
+            return true;
+        }
+        return false;
+    } else {
+        // Fall back to the original implementation if ncurses is not initialized
+        struct termios oldt, newt;
+        int ch;
+        int oldf;
+
+        tcgetattr(STDIN_FILENO, &oldt);
+        newt = oldt;
+        newt.c_lflag &= ~(ICANON | ECHO);
+        tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+        oldf = fcntl(STDIN_FILENO, F_GETFL, 0);
+        fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK);
+
+        ch = getchar();
+
+        tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+        fcntl(STDIN_FILENO, F_SETFL, oldf);
+
+        if(ch != EOF) {
+            ungetc(ch, stdin);
+            return true;
+        }
+
+        return false;
+    }
+#else
     struct termios oldt, newt;
     int ch;
     int oldf;
-    
+
     tcgetattr(STDIN_FILENO, &oldt);
     newt = oldt;
     newt.c_lflag &= ~(ICANON | ECHO);
     tcsetattr(STDIN_FILENO, TCSANOW, &newt);
     oldf = fcntl(STDIN_FILENO, F_GETFL, 0);
     fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK);
-    
+
     ch = getchar();
-    
+
     tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
     fcntl(STDIN_FILENO, F_SETFL, oldf);
-    
+
     if(ch != EOF) {
         ungetc(ch, stdin);
         return true;
     }
-    
+
     return false;
+#endif
 #endif
 }
 
@@ -178,6 +332,33 @@ char Console::readChar() {
     initialize();
 #ifdef _WIN32
     return _getch();
+#else
+#ifdef USE_NCURSES
+    if (ncursesInitialized) {
+        nodelay(inputWindow, FALSE); // Wait for key press
+        int ch = getch();
+        nodelay(inputWindow, TRUE);  // Restore non-blocking mode
+        return translateNcursesKey(ch);
+    } else {
+        // Fall back to the original implementation if ncurses is not initialized
+        char buf = 0;
+        struct termios old = {0};
+        if (tcgetattr(0, &old) < 0)
+            perror("tcsetattr()");
+        old.c_lflag &= ~ICANON;
+        old.c_lflag &= ~ECHO;
+        old.c_cc[VMIN] = 1;
+        old.c_cc[VTIME] = 0;
+        if (tcsetattr(0, TCSANOW, &old) < 0)
+            perror("tcsetattr ICANON");
+        if (read(0, &buf, 1) < 0)
+            perror("read()");
+        old.c_lflag |= ICANON;
+        old.c_lflag |= ECHO;
+        if (tcsetattr(0, TCSADRAIN, &old) < 0)
+            perror("tcsetattr ~ICANON");
+        return buf;
+    }
 #else
     char buf = 0;
     struct termios old = {0};
@@ -196,6 +377,7 @@ char Console::readChar() {
     if (tcsetattr(0, TCSADRAIN, &old) < 0)
         perror("tcsetattr ~ICANON");
     return buf;
+#endif
 #endif
 }
 

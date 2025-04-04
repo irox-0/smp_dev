@@ -10,6 +10,9 @@
 #else
 #include <sys/ioctl.h>
 #include <unistd.h>
+#ifdef USE_NCURSES
+#include <ncurses.h>
+#endif
 #endif
 
 namespace StockMarketSimulator {
@@ -54,8 +57,17 @@ private:
 
     static bool isInitialized;
 
+#ifdef USE_NCURSES
+    static bool ncursesInitialized;
+    static WINDOW* inputWindow;
+    static void initializeNcurses();
+    static void cleanupNcurses();
+    static char translateNcursesKey(int key);
+#endif
+
 public:
     static void initialize();
+    static void cleanup();
 
     static void clear();
 
