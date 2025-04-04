@@ -6,7 +6,6 @@
 #ifdef _WIN32
 #include <conio.h>
 #else
-#include <termios.h>
 #include <fcntl.h>
 #endif
 
@@ -17,9 +16,44 @@ TextColor Console::currentBgColor = TextColor::Default;
 TextStyle Console::currentStyle = TextStyle::Regular;
 bool Console::isInitialized = false;
 
-#ifdef USE_NCURSES
-bool Console::ncursesInitialized = false;
-WINDOW* Console::inputWindow = nullptr;
+#ifndef _WIN32
+struct termios Console::originalTermios;
+bool Console::termiosSet = false;
+
+void Console::setupTerminalMode() {
+    if (!termiosSet) {
+        // Get original terminal settings
+        tcgetattr(STDIN_FILENO, &originalTermios);
+        termiosSet = true;
+
+        // Create a copy for the new settings
+        struct termios raw = originalTermios;
+
+        // Modify settings for raw mode
+        // ECHO: Don't echo input characters
+        // ICANON: Disable canonical mode (line-by-line input)
+        // ISIG: Disable signals like Ctrl+C, Ctrl+Z
+        raw.c_lflag &= ~(ECHO | ICANON | ISIG);
+
+        // IXON: Disable software flow control (Ctrl+S, Ctrl+Q)
+        // ICRNL: Don't translate carriage return to newline
+        raw.c_iflag &= ~(IXON | ICRNL);
+
+        // Timeout for read() - make it return immediately
+        raw.c_cc[VMIN] = 0;  // Minimum number of characters to read
+        raw.c_cc[VTIME] = 0; // Timeout in deciseconds
+
+        // Apply the new settings
+        tcsetattr(STDIN_FILENO, TCSANOW, &raw);
+    }
+}
+
+void Console::restoreTerminalMode() {
+    if (termiosSet) {
+        tcsetattr(STDIN_FILENO, TCSANOW, &originalTermios);
+        termiosSet = false;
+    }
+}
 #endif
 
 std::string Console::getAnsiColorCode(TextColor fg, TextColor bg, TextStyle style) {
@@ -47,45 +81,6 @@ std::string Console::getAnsiColorCode(TextColor fg, TextColor bg, TextStyle styl
     return code;
 }
 
-#ifdef USE_NCURSES
-void Console::initializeNcurses() {
-    if (!ncursesInitialized) {
-        // Initialize ncurses for input handling only
-        inputWindow = initscr();
-        cbreak();             // Line buffering disabled
-        noecho();             // Don't echo keypresses
-        keypad(inputWindow, TRUE);  // Enable function keys, arrow keys, etc.
-        nodelay(inputWindow, TRUE); // Non-blocking input
-
-        // Start with ncurses raw mode for proper key handling
-        raw();
-
-        ncursesInitialized = true;
-    }
-}
-
-void Console::cleanupNcurses() {
-    if (ncursesInitialized) {
-        endwin();
-        ncursesInitialized = false;
-    }
-}
-
-char Console::translateNcursesKey(int key) {
-    switch (key) {
-        case KEY_UP:    return static_cast<char>(Key::ArrowUp);
-        case KEY_DOWN:  return static_cast<char>(Key::ArrowDown);
-        case KEY_LEFT:  return static_cast<char>(Key::ArrowLeft);
-        case KEY_RIGHT: return static_cast<char>(Key::ArrowRight);
-        case KEY_ENTER: // Fall through
-        case '\n':      return static_cast<char>(Key::Enter);
-        case 27:        return static_cast<char>(Key::Escape);
-        case ' ':       return static_cast<char>(Key::Space);
-        default:        return static_cast<char>(key);
-    }
-}
-#endif
-
 void Console::initializeConsole() {
 #ifdef _WIN32
     HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -97,9 +92,9 @@ void Console::initializeConsole() {
     SetConsoleOutputCP(CP_UTF8);
     SetConsoleCP(CP_UTF8);
 #else
-#ifdef USE_NCURSES
-    initializeNcurses();
-#endif
+    // For Unix-like systems, we use ANSI escape sequences which require no initialization
+    // but we need to set up the terminal for proper input handling
+    setupTerminalMode();
 #endif
     isInitialized = true;
 }
@@ -111,8 +106,8 @@ void Console::initialize() {
 }
 
 void Console::cleanup() {
-#ifdef USE_NCURSES
-    cleanupNcurses();
+#ifndef _WIN32
+    restoreTerminalMode();
 #endif
 }
 
@@ -121,31 +116,13 @@ void Console::clear() {
 #ifdef _WIN32
     system("cls");
 #else
-#ifdef USE_NCURSES
-    if (ncursesInitialized) {
-        erase();
-        refresh();
-    } else {
-        std::cout << "\033[2J\033[H";
-    }
-#else
-    std::cout << "\033[2J\033[H";
-#endif
+    std::cout << "\033[2J\033[H" << std::flush;
 #endif
 }
 
 void Console::setCursorPosition(int x, int y) {
     initialize();
-#ifdef USE_NCURSES
-    if (ncursesInitialized) {
-        move(y, x);
-        refresh();
-    } else {
-        std::cout << "\033[" << y + 1 << ";" << x + 1 << "H";
-    }
-#else
-    std::cout << "\033[" << y + 1 << ";" << x + 1 << "H";
-#endif
+    std::cout << "\033[" << y + 1 << ";" << x + 1 << "H" << std::flush;
 }
 
 std::pair<int, int> Console::getSize() {
@@ -161,23 +138,11 @@ std::pair<int, int> Console::getSize() {
         height = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
     }
 #else
-#ifdef USE_NCURSES
-    if (ncursesInitialized) {
-        getmaxyx(stdscr, height, width);
-    } else {
-        struct winsize w;
-        if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) != -1) {
-            width = w.ws_col;
-            height = w.ws_row;
-        }
-    }
-#else
     struct winsize w;
     if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) != -1) {
         width = w.ws_col;
         height = w.ws_row;
     }
-#endif
 #endif
 
     return {width, height};
@@ -187,49 +152,13 @@ void Console::setColor(TextColor fg, TextColor bg) {
     initialize();
     currentFgColor = fg;
     currentBgColor = bg;
-#ifdef USE_NCURSES
-    if (ncursesInitialized) {
-        // Map our color enums to ncurses colors
-        short ncursesFg = COLOR_WHITE;
-        short ncursesBg = COLOR_BLACK;
-
-        switch (fg) {
-            case TextColor::Black: ncursesFg = COLOR_BLACK; break;
-            case TextColor::Red: ncursesFg = COLOR_RED; break;
-            case TextColor::Green: ncursesFg = COLOR_GREEN; break;
-            case TextColor::Yellow: ncursesFg = COLOR_YELLOW; break;
-            case TextColor::Blue: ncursesFg = COLOR_BLUE; break;
-            case TextColor::Magenta: ncursesFg = COLOR_MAGENTA; break;
-            case TextColor::Cyan: ncursesFg = COLOR_CYAN; break;
-            case TextColor::White: ncursesFg = COLOR_WHITE; break;
-            default: ncursesFg = COLOR_WHITE; break;
-        }
-
-        switch (bg) {
-            case TextColor::Black: ncursesBg = COLOR_BLACK; break;
-            case TextColor::Red: ncursesBg = COLOR_RED; break;
-            case TextColor::Green: ncursesBg = COLOR_GREEN; break;
-            case TextColor::Yellow: ncursesBg = COLOR_YELLOW; break;
-            case TextColor::Blue: ncursesBg = COLOR_BLUE; break;
-            case TextColor::Magenta: ncursesBg = COLOR_MAGENTA; break;
-            case TextColor::Cyan: ncursesBg = COLOR_CYAN; break;
-            case TextColor::White: ncursesBg = COLOR_WHITE; break;
-            default: ncursesBg = COLOR_BLACK; break;
-        }
-
-        // In a real implementation, we would initialize color pairs
-        // and use them here. For simplicity, we'll just output ANSI codes
-    }
-    std::cout << getAnsiColorCode(fg, bg, currentStyle);
-#else
-    std::cout << getAnsiColorCode(fg, bg, currentStyle);
-#endif
+    std::cout << getAnsiColorCode(fg, bg, currentStyle) << std::flush;
 }
 
 void Console::setStyle(TextStyle style) {
     initialize();
     currentStyle = style;
-    std::cout << getAnsiColorCode(currentFgColor, currentBgColor, style);
+    std::cout << getAnsiColorCode(currentFgColor, currentBgColor, style) << std::flush;
 }
 
 void Console::resetAttributes() {
@@ -237,7 +166,7 @@ void Console::resetAttributes() {
     currentFgColor = TextColor::Default;
     currentBgColor = TextColor::Default;
     currentStyle = TextStyle::Regular;
-    std::cout << "\033[0m";
+    std::cout << "\033[0m" << std::flush;
 }
 
 void Console::print(const std::string& text, TextColor fg, TextColor bg, TextStyle style) {
@@ -245,7 +174,7 @@ void Console::print(const std::string& text, TextColor fg, TextColor bg, TextSty
     if (fg != currentFgColor || bg != currentBgColor || style != currentStyle) {
         std::cout << getAnsiColorCode(fg, bg, style);
     }
-    std::cout << text;
+    std::cout << text << std::flush;
     if (fg != currentFgColor || bg != currentBgColor || style != currentStyle) {
         std::cout << getAnsiColorCode(currentFgColor, currentBgColor, currentStyle);
     }
@@ -258,8 +187,20 @@ void Console::println(const std::string& text, TextColor fg, TextColor bg, TextS
 
 std::string Console::readLine() {
     initialize();
+
+#ifndef _WIN32
+    // Temporarily restore canonical mode for readLine
+    restoreTerminalMode();
+#endif
+
     std::string input;
     std::getline(std::cin, input);
+
+#ifndef _WIN32
+    // Go back to raw mode after reading
+    setupTerminalMode();
+#endif
+
     return input;
 }
 
@@ -268,63 +209,10 @@ bool Console::keyPressed() {
 #ifdef _WIN32
     return _kbhit() != 0;
 #else
-#ifdef USE_NCURSES
-    if (ncursesInitialized) {
-        int ch = getch();
-        if (ch != ERR) {
-            ungetch(ch);
-            return true;
-        }
-        return false;
-    } else {
-        // Fall back to the original implementation if ncurses is not initialized
-        struct termios oldt, newt;
-        int ch;
-        int oldf;
-
-        tcgetattr(STDIN_FILENO, &oldt);
-        newt = oldt;
-        newt.c_lflag &= ~(ICANON | ECHO);
-        tcsetattr(STDIN_FILENO, TCSANOW, &newt);
-        oldf = fcntl(STDIN_FILENO, F_GETFL, 0);
-        fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK);
-
-        ch = getchar();
-
-        tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
-        fcntl(STDIN_FILENO, F_SETFL, oldf);
-
-        if(ch != EOF) {
-            ungetc(ch, stdin);
-            return true;
-        }
-
-        return false;
-    }
-#else
-    struct termios oldt, newt;
-    int ch;
-    int oldf;
-
-    tcgetattr(STDIN_FILENO, &oldt);
-    newt = oldt;
-    newt.c_lflag &= ~(ICANON | ECHO);
-    tcsetattr(STDIN_FILENO, TCSANOW, &newt);
-    oldf = fcntl(STDIN_FILENO, F_GETFL, 0);
-    fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK);
-
-    ch = getchar();
-
-    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
-    fcntl(STDIN_FILENO, F_SETFL, oldf);
-
-    if(ch != EOF) {
-        ungetc(ch, stdin);
-        return true;
-    }
-
-    return false;
-#endif
+    // Set up file descriptor for non-blocking input
+    int bytesWaiting;
+    ioctl(STDIN_FILENO, FIONREAD, &bytesWaiting);
+    return bytesWaiting > 0;
 #endif
 }
 
@@ -333,71 +221,57 @@ char Console::readChar() {
 #ifdef _WIN32
     return _getch();
 #else
-#ifdef USE_NCURSES
-    if (ncursesInitialized) {
-        nodelay(inputWindow, FALSE); // Wait for key press
-        int ch = getch();
-        nodelay(inputWindow, TRUE);  // Restore non-blocking mode
-        return translateNcursesKey(ch);
-    } else {
-        // Fall back to the original implementation if ncurses is not initialized
-        char buf = 0;
-        struct termios old = {0};
-        if (tcgetattr(0, &old) < 0)
-            perror("tcsetattr()");
-        old.c_lflag &= ~ICANON;
-        old.c_lflag &= ~ECHO;
-        old.c_cc[VMIN] = 1;
-        old.c_cc[VTIME] = 0;
-        if (tcsetattr(0, TCSANOW, &old) < 0)
-            perror("tcsetattr ICANON");
-        if (read(0, &buf, 1) < 0)
-            perror("read()");
-        old.c_lflag |= ICANON;
-        old.c_lflag |= ECHO;
-        if (tcsetattr(0, TCSADRAIN, &old) < 0)
-            perror("tcsetattr ~ICANON");
-        return buf;
+    // Read a single character from stdin
+    char c = 0;
+    if (read(STDIN_FILENO, &c, 1) < 0) {
+        return 0;
     }
-#else
-    char buf = 0;
-    struct termios old = {0};
-    if (tcgetattr(0, &old) < 0)
-        perror("tcsetattr()");
-    old.c_lflag &= ~ICANON;
-    old.c_lflag &= ~ECHO;
-    old.c_cc[VMIN] = 1;
-    old.c_cc[VTIME] = 0;
-    if (tcsetattr(0, TCSANOW, &old) < 0)
-        perror("tcsetattr ICANON");
-    if (read(0, &buf, 1) < 0)
-        perror("read()");
-    old.c_lflag |= ICANON;
-    old.c_lflag |= ECHO;
-    if (tcsetattr(0, TCSADRAIN, &old) < 0)
-        perror("tcsetattr ~ICANON");
-    return buf;
-#endif
+
+    // Check for escape sequences
+    if (c == 27) { // ESC character
+        // Read next two characters to check for arrow keys
+        char seq[2];
+        if (read(STDIN_FILENO, &seq[0], 1) != 1) return c;
+        if (read(STDIN_FILENO, &seq[1], 1) != 1) return c;
+
+        // Process arrow keys
+        if (seq[0] == '[') {
+            switch (seq[1]) {
+                case 'A': return static_cast<char>(Key::ArrowUp);
+                case 'B': return static_cast<char>(Key::ArrowDown);
+                case 'C': return static_cast<char>(Key::ArrowRight);
+                case 'D': return static_cast<char>(Key::ArrowLeft);
+            }
+        }
+        return c; // Return ESC if not an arrow key
+    }
+
+    // Map Enter key
+    if (c == 10) {
+        return static_cast<char>(Key::Enter);
+    }
+
+    return c;
 #endif
 }
 
 void Console::drawBox(int x, int y, int width, int height, TextColor fg, TextColor bg) {
     initialize();
     setColor(fg, bg);
-    
+
     setCursorPosition(x, y);
     std::cout << "+" << std::string(width - 2, '-') << "+";
-    
+
     for (int i = 1; i < height - 1; i++) {
         setCursorPosition(x, y + i);
         std::cout << "|";
         setCursorPosition(x + width - 1, y + i);
         std::cout << "|";
     }
-    
+
     setCursorPosition(x, y + height - 1);
     std::cout << "+" << std::string(width - 2, '-') << "+";
-    
+
     resetAttributes();
 }
 
@@ -419,42 +293,42 @@ void Console::drawVerticalLine(int x, int y, int length, TextColor fg, TextColor
     resetAttributes();
 }
 
-void Console::drawTable(int x, int y, const std::vector<std::vector<std::string>>& data, 
+void Console::drawTable(int x, int y, const std::vector<std::vector<std::string>>& data,
                         const std::vector<int>& columnWidths, bool hasHeader,
-                        TextColor headerFg, TextColor headerBg, 
+                        TextColor headerFg, TextColor headerBg,
                         TextColor bodyFg, TextColor bodyBg) {
     initialize();
-    
+
     if (data.empty() || columnWidths.empty()) {
         return;
     }
-    
+
     int totalWidth = 1;
     for (int width : columnWidths) {
         totalWidth += width + 1;
     }
-    
+
     setCursorPosition(x, y);
     setColor(bodyFg, bodyBg);
     std::cout << "+";
     for (int width : columnWidths) {
         std::cout << std::string(width, '-') << "+";
     }
-    
+
     int currentY = y + 1;
-    
+
     for (size_t i = 0; i < data.size(); i++) {
         const auto& row = data[i];
         setCursorPosition(x, currentY);
-        
+
         if (i == 0 && hasHeader) {
             setColor(headerFg, headerBg);
         } else {
             setColor(bodyFg, bodyBg);
         }
-        
+
         std::cout << "|";
-        
+
         for (size_t j = 0; j < columnWidths.size() && j < row.size(); j++) {
             std::string cell = row[j];
             if (cell.length() > static_cast<size_t>(columnWidths[j])) {
@@ -462,9 +336,9 @@ void Console::drawTable(int x, int y, const std::vector<std::vector<std::string>
             }
             std::cout << cell << std::string(columnWidths[j] - cell.length(), ' ') << "|";
         }
-        
+
         currentY++;
-        
+
         if ((i == 0 && hasHeader) || i < data.size() - 1) {
             setCursorPosition(x, currentY);
             setColor(bodyFg, bodyBg);
@@ -475,33 +349,33 @@ void Console::drawTable(int x, int y, const std::vector<std::vector<std::string>
             currentY++;
         }
     }
-    
+
     setCursorPosition(x, currentY);
     setColor(bodyFg, bodyBg);
     std::cout << "+";
     for (int width : columnWidths) {
         std::cout << std::string(width, '-') << "+";
     }
-    
+
     resetAttributes();
 }
 
-int Console::showMenu(int x, int y, const std::vector<std::string>& options, 
+int Console::showMenu(int x, int y, const std::vector<std::string>& options,
                      TextColor selectedFg, TextColor selectedBg,
                      TextColor normalFg, TextColor normalBg) {
     initialize();
-    
+
     if (options.empty()) {
         return -1;
     }
-    
+
     int selected = 0;
     bool running = true;
-    
+
     while (running) {
         for (size_t i = 0; i < options.size(); i++) {
             setCursorPosition(x, y + static_cast<int>(i));
-            
+
             if (i == static_cast<size_t>(selected)) {
                 setColor(selectedFg, selectedBg);
                 std::cout << "> " << options[i];
@@ -509,31 +383,31 @@ int Console::showMenu(int x, int y, const std::vector<std::string>& options,
                 setColor(normalFg, normalBg);
                 std::cout << "  " << options[i];
             }
-            
+
             int menuWidth = static_cast<int>(options[i].length()) + 2;
             std::cout << std::string(getSize().first - x - menuWidth, ' ');
         }
-        
+
         resetAttributes();
-        
+
         char key = readChar();
-        
+
         switch (key) {
             case static_cast<char>(Key::ArrowUp):
                 selected = (selected > 0) ? selected - 1 : static_cast<int>(options.size()) - 1;
                 break;
-                
+
             case static_cast<char>(Key::ArrowDown):
                 selected = (selected < static_cast<int>(options.size()) - 1) ? selected + 1 : 0;
                 break;
-                
+
             case static_cast<char>(Key::Enter):
                 running = false;
                 break;
-                
+
             case static_cast<char>(Key::Escape):
                 return -1;
-                
+
             default:
                 if (key >= '0' && key <= '9') {
                     int index = key - '0';
@@ -544,27 +418,27 @@ int Console::showMenu(int x, int y, const std::vector<std::string>& options,
                 break;
         }
     }
-    
+
     return selected;
 }
 
 void Console::drawChart(int x, int y, int width, int height, const std::vector<double>& values,
                       double minValue, double maxValue, TextColor fg) {
     initialize();
-    
+
     if (values.empty() || width <= 2 || height <= 2) {
         return;
     }
-    
+
     if (minValue == maxValue) {
         minValue = values[0];
         maxValue = values[0];
-        
+
         for (const double& value : values) {
             if (value < minValue) minValue = value;
             if (value > maxValue) maxValue = value;
         }
-        
+
         double range = maxValue - minValue;
         if (range == 0) {
             minValue -= 1.0;
@@ -574,15 +448,15 @@ void Console::drawChart(int x, int y, int width, int height, const std::vector<d
             maxValue += range * 0.05;
         }
     }
-    
+
     double valueRange = maxValue - minValue;
     if (valueRange == 0) valueRange = 1.0;
-    
+
     drawBox(x, y, width, height, fg, TextColor::Default);
-    
+
     int dataWidth = width - 2;
     int dataHeight = height - 2;
-    
+
     int numPoints = static_cast<int>(values.size());
 
     setColor(fg, TextColor::Default);
@@ -615,22 +489,22 @@ void Console::drawChart(int x, int y, int width, int height, const std::vector<d
 
     resetAttributes();
 }
-void Console::drawProgressBar(int x, int y, int width, double progress, 
+void Console::drawProgressBar(int x, int y, int width, double progress,
                             TextColor fg, TextColor bg) {
     initialize();
-    
+
     if (width < 2) return;
-    
+
     if (progress < 0.0) progress = 0.0;
     if (progress > 1.0) progress = 1.0;
-    
+
     int progressWidth = static_cast<int>(progress * (width - 2));
-    
+
     setCursorPosition(x, y);
     setColor(fg, bg);
-    
+
     std::cout << "[";
-    
+
     for (int i = 0; i < width - 2; i++) {
         if (i < progressWidth) {
             std::cout << "█";
@@ -638,9 +512,9 @@ void Console::drawProgressBar(int x, int y, int width, double progress,
             std::cout << " ";
         }
     }
-    
+
     std::cout << "]";
-    
+
     resetAttributes();
 }
 
@@ -650,7 +524,7 @@ void Console::sleep(int milliseconds) {
 
 void Console::waitForKey() {
     initialize();
-    std::cout << "Press any key to continue...";
+    std::cout << "Press any key to continue..." << std::flush;
     readChar();
 }
 

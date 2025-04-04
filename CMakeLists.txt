@@ -7,16 +7,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
 include_directories(${SOURCE_DIR})
 
-# Check if we're on Linux and need ncurses
-if(UNIX AND NOT APPLE)
-    find_package(Curses REQUIRED)
-    include_directories(${CURSES_INCLUDE_DIR})
-    set(PLATFORM_SPECIFIC_LIBS ${CURSES_LIBRARIES})
-    add_compile_definitions(USE_NCURSES)
-else()
-    set(PLATFORM_SPECIFIC_LIBS "")
-endif()
-
 include(FetchContent)
 FetchContent_Declare(
         json
@@ -31,7 +21,7 @@ file(GLOB_RECURSE SMP_SOURCES
 )
 
 add_executable(smp ${SMP_SOURCES})
-target_link_libraries(smp PRIVATE nlohmann_json::nlohmann_json ${PLATFORM_SPECIFIC_LIBS})
+target_link_libraries(smp PRIVATE nlohmann_json::nlohmann_json)
 
 file(GLOB_RECURSE UTILS_SOURCES
         "${SOURCE_DIR}/utils/*.cpp"
@@ -61,7 +51,7 @@ add_library(stock_market_utils
         ${SERVICES_SOURCES}
 )
 
-target_link_libraries(stock_market_utils PRIVATE nlohmann_json::nlohmann_json ${PLATFORM_SPECIFIC_LIBS})
+target_link_libraries(stock_market_utils PRIVATE nlohmann_json::nlohmann_json)
 
 include(FetchContent)
 FetchContent_Declare(
@@ -96,10 +86,11 @@ add_executable(utils_tests
         #        tests/ui/widgets/TableTest.cpp
         #        tests/ui/ScreenTest.cpp
         #        tests/ui/screens/MainScreenTest.cpp
-                tests/ui/screens/NewsScreenTest.cpp
+        #        tests/ui/screens/NewsScreenTest.cpp
         #        tests/ui/screens/MarketScreenTest.cpp
         #        tests/ui/screens/FinancialScreenTest.cpp
-#        tests/ui/screens/CompanyScreenTest.cpp
+        tests/ui/screens/CompanyScreenTest.cpp
+        tests/ui/screens/MarketCompanyIntegrationTest.cpp
 )
 
 target_link_libraries(utils_tests
@@ -108,7 +99,6 @@ target_link_libraries(utils_tests
         gtest
         gtest_main
         nlohmann_json::nlohmann_json
-        ${PLATFORM_SPECIFIC_LIBS}
 )
 
 gtest_discover_tests(utils_tests)

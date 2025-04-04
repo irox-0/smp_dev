@@ -10,9 +10,7 @@
 #else
 #include <sys/ioctl.h>
 #include <unistd.h>
-#ifdef USE_NCURSES
-#include <ncurses.h>
-#endif
+#include <termios.h>
 #endif
 
 namespace StockMarketSimulator {
@@ -57,12 +55,12 @@ private:
 
     static bool isInitialized;
 
-#ifdef USE_NCURSES
-    static bool ncursesInitialized;
-    static WINDOW* inputWindow;
-    static void initializeNcurses();
-    static void cleanupNcurses();
-    static char translateNcursesKey(int key);
+#ifndef _WIN32
+    // Store original terminal settings to restore them later
+    static struct termios originalTermios;
+    static bool termiosSet;
+    static void setupTerminalMode();
+    static void restoreTerminalMode();
 #endif
 
 public:
