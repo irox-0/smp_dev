@@ -111,7 +111,7 @@ void NewsScreen::drawFilterInfo() const {
     auto marketPtr = market.lock();
     if (marketPtr) {
         Console::setCursorPosition(x + width - 22, y + 2);
-        Console::print("Date: " + std::to_string(marketPtr->getCurrentDay()) + ".03.2023");
+        Console::print("Date: " + marketPtr->getCurrentDate().toString());
     }
 
     Console::setCursorPosition(x, y + 3);
@@ -160,7 +160,7 @@ void NewsScreen::drawNewsList() const {
 
         Console::setCursorPosition(x + 2, newsY);
         Console::setColor(TextColor::Cyan, bodyBg);
-        Console::print(typeStr + " " + news.getPublishDate().toString() + ".03.2023");
+        Console::print(typeStr + " " + news.getPublishDate().toString());
 
         Console::setCursorPosition(x + 2, newsY + 1);
         Console::setColor(bodyFg, bodyBg);

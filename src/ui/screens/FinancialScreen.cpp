@@ -235,14 +235,66 @@ void FinancialScreen::drawMarginInfo() const {
     Console::setColor(TextColor::Cyan, bodyBg);
     Console::print(reqStr.str());
 
+    // Add maintenance requirement explanation
     Console::setCursorPosition(x + 2, y + 10);
+    Console::setColor(TextColor::Yellow, bodyBg);
+    Console::print("(Minimum equity that must be maintained)");
+
+    Console::setCursorPosition(x + 2, y + 12);
     Console::setColor(TextColor::White, bodyBg);
     Console::print("Margin Account Status:");
-    Console::setCursorPosition(x + 2, y + 11);
 
-    marginTable.draw();
+    // Display margin account balance more clearly
+    Console::setCursorPosition(x + 4, y + 13);
+    Console::setColor(bodyFg, bodyBg);
+    Console::print("Balance: ");
+    Console::setColor(TextColor::Green, bodyBg);
+    std::stringstream balanceStr;
+    balanceStr << std::fixed << std::setprecision(2) << playerPtr->getMarginAccountBalance() << "$";
+    Console::print(balanceStr.str());
+
+    // Display margin used clearly
+    Console::setCursorPosition(x + 4, y + 14);
+    Console::setColor(bodyFg, bodyBg);
+    Console::print("Used: ");
+    if (playerPtr->getMarginUsed() > 0) {
+        Console::setColor(TextColor::Red, bodyBg);
+    } else {
+        Console::setColor(TextColor::Green, bodyBg);
+    }
+    std::stringstream usedStr;
+    usedStr << std::fixed << std::setprecision(2) << playerPtr->getMarginUsed() << "$";
+    Console::print(usedStr.str());
+
+    // Display available margin
+    Console::setCursorPosition(x + 4, y + 15);
+    Console::setColor(bodyFg, bodyBg);
+    Console::print("Available: ");
+    Console::setColor(TextColor::Cyan, bodyBg);
+    std::stringstream availableStr;
+    availableStr << std::fixed << std::setprecision(2) << playerPtr->getMarginAvailable() << "$";
+    Console::print(availableStr.str());
+
+    // Display margin interest rate
+    Console::setCursorPosition(x + 4, y + 16);
+    Console::setColor(bodyFg, bodyBg);
+    Console::print("Rate: ");
+    Console::setColor(TextColor::Yellow, bodyBg);
+    std::stringstream rateStr;
+    rateStr << std::fixed << std::setprecision(1) << (playerPtr->getMarginInterestRate() * 100.0) << "%";
+    Console::print(rateStr.str());
+
+    // Margin call warning if close to maintenance requirement
+    portfolioValue = playerPtr->getPortfolio()->getTotalStocksValue();
+    double requiredEquity = portfolioValue * playerPtr->getMarginRequirement();
+    double actualEquity = portfolioValue + playerPtr->getMarginAccountBalance() - playerPtr->getMarginUsed();
+
+    if (actualEquity < requiredEquity * 1.2 && playerPtr->getMarginUsed() > 0) {
+        Console::setCursorPosition(x + 2, y + 18);
+        Console::setColor(TextColor::Red, bodyBg);
+        Console::print("WARNING: Close to margin call threshold!");
+    }
 }
-
 void FinancialScreen::drawAvailableLoans() const {
     auto playerPtr = player.lock();
     if (!playerPtr) {

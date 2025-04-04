@@ -1,15 +1,34 @@
 #include "MainScreen.hpp"
+#include "utils/FileIO.hpp"
 #include <algorithm>
 #include <sstream>
 #include <iomanip>
 #include <cmath>
+#include <chrono>
+#include <fstream>
 
 namespace StockMarketSimulator {
 
 MainScreen::MainScreen()
-    : Screen("STOCK PLAYER - MAIN MENU", ScreenType::Main)
+    : Screen("STOCK PLAYER - MAIN MENU", ScreenType::Main),
+      game(nullptr)
 {
-    setSize(46, 31);
+    setSize(48, 32);
+}
+
+void MainScreen::setGame(std::shared_ptr<Game> game) {
+    this->game = game;
+
+    if (game) {
+        // Set references to game components
+        setMarket(game->getMarket());
+        setPlayer(game->getPlayer());
+        setNewsService(game->getNewsService());
+    }
+}
+
+std::shared_ptr<Game> MainScreen::getGame() const {
+    return game;
 }
 
 void MainScreen::setNewsService(std::weak_ptr<NewsService> newsService) {
@@ -29,6 +48,64 @@ void MainScreen::update() {
     Screen::update();
     updateTopStocks();
     updateLatestNews();
+
+    // Check for game over conditions
+    checkGameOverConditions();
+}
+
+    // Update this method in MainScreen.cpp
+    void MainScreen::checkGameOverConditions() {
+    if (!game) return;
+
+    auto playerPtr = player.lock();
+    if (!playerPtr) return;
+
+    // Check if player has no money left
+    if (playerPtr->getPortfolio()->getTotalValue() <= 0.01) {
+        gameOver("Game Over: You've run out of money!");
+        return;
+    }
+
+    // Check for any overdue loans that haven't been repaid
+    for (const auto& loan : playerPtr->getLoans()) {
+        if (!loan.getIsPaid() && loan.isOverdue(playerPtr->getCurrentDate())) {
+            // If loan is overdue and cannot be repaid with available cash
+            if (loan.getTotalDue() > playerPtr->getPortfolio()->getCashBalance()) {
+                gameOver("Game Over: Loan Default! You failed to repay a loan on time.");
+                return;
+            }
+        }
+    }
+}
+
+void MainScreen::gameOver(const std::string& message) {
+    // Pause the game
+    if (game) {
+        game->pause();
+    }
+
+    // Display game over message
+    int messageY = y + height / 2;
+
+    for (int i = -2; i <= 2; i++) {
+        Console::setCursorPosition(x + 2, messageY + i);
+        Console::setColor(bodyFg, bodyBg);
+        Console::print(std::string(width - 4, ' '));
+    }
+
+    Console::setCursorPosition(x + width/2 - 4, messageY - 1);
+    Console::setColor(TextColor::Red, bodyBg);
+    Console::print("GAME OVER");
+
+    Console::setCursorPosition(x + width/2 - message.length()/2, messageY);
+    Console::print(message);
+
+    Console::setCursorPosition(x + width/2 - 13, messageY + 2);
+    Console::setColor(bodyFg, bodyBg);
+    Console::print("Press any key to exit...");
+
+    Console::readChar();
+    close();
 }
 
 void MainScreen::updateTopStocks() {
@@ -287,14 +364,17 @@ void MainScreen::drawNavigationMenu() const {
     menuY += 1;
 
     Console::setCursorPosition(x + 2, menuY);
-    Console::print("5. Save/Load");
+    Console::print("5. Save Game");
     menuY += 1;
 
     Console::setCursorPosition(x + 2, menuY);
-    Console::print("0. Exit");
+    Console::print("9. Advance to Next Day");
+    menuY += 1;
+
+    Console::setCursorPosition(x + 2, menuY);
+    Console::print("0. Exit Game");
     menuY += 2;
 
-    // Prompt
     Console::setCursorPosition(x + 2, menuY - 1);
     Console::print("Choose action: ");
 }
@@ -318,7 +398,11 @@ bool MainScreen::handleInput(int key) {
             return true;
 
         case '5':
-            openSaveLoadScreen();
+            saveGame();
+            return true;
+
+        case '9':
+            advanceDay();
             return true;
 
         case '0':
@@ -336,7 +420,7 @@ void MainScreen::openMarketScreen() const {
     marketScreen->setMarket(market);
     marketScreen->setPlayer(player);
     marketScreen->setNewsService(newsService);
-
+    Console::clear();
     marketScreen->setPosition(x, y);
 
     marketScreen->initialize();
@@ -349,7 +433,7 @@ void MainScreen::openPortfolioScreen() const {
     auto portfolioScreen = std::make_shared<PortfolioScreen>();
     portfolioScreen->setMarket(market);
     portfolioScreen->setPlayer(player);
-
+    Console::clear();
     portfolioScreen->setPosition(x, y);
 
     portfolioScreen->initialize();
@@ -363,7 +447,7 @@ void MainScreen::openNewsScreen() const {
     newsScreen->setMarket(market);
     newsScreen->setPlayer(player);
     newsScreen->setNewsService(newsService);
-
+    Console::clear();
     newsScreen->setPosition(x, y);
 
     newsScreen->initialize();
@@ -385,28 +469,82 @@ void MainScreen::openFinancialScreen() const {
     draw();
 }
 
-void MainScreen::openSaveLoadScreen() const {
-    int messageY = y + height / 2;
-
-    for (int i = -2; i <= 2; i++) {
-        Console::setCursorPosition(x + 2, messageY + i);
-        Console::setColor(bodyFg, bodyBg);
-        Console::print(std::string(width - 4, ' '));
+void MainScreen::saveGame() const {
+    if (!game) {
+        Console::setCursorPosition(x + 2, y + 30);
+        Console::setColor(TextColor::Red, bodyBg);
+        Console::print("Error: Game not initialized!");
+        Console::sleep(1500);
+        return;
     }
 
-    Console::setCursorPosition(x + width/2 - 10, messageY - 1);
-    Console::setColor(TextColor::Yellow, bodyBg);
-    Console::print("Save/Load Functionality");
+    auto playerPtr = player.lock();
+    if (!playerPtr) {
+        Console::setCursorPosition(x + 2, y + 30);
+        Console::setColor(TextColor::Red, bodyBg);
+        Console::print("Error: Player not available!");
+        Console::sleep(1500);
+        return;
+    }
 
-    Console::setCursorPosition(x + width/2 - 16, messageY);
-    Console::setColor(bodyFg, bodyBg);
-    Console::print("This feature is not implemented yet");
+    // Generate a timestamp for the filename
+    auto now = std::chrono::system_clock::now();
+    auto time = std::chrono::system_clock::to_time_t(now);
+    std::stringstream ss;
+    ss << std::put_time(std::localtime(&time), "%Y%m%d_%H%M%S");
 
-    Console::setCursorPosition(x + width/2 - 13, messageY + 2);
-    Console::print("Press any key to continue...");
+    // Create save name using player name and date
+    std::string saveName = playerPtr->getName() + "_Day" +
+                          std::to_string(playerPtr->getCurrentDay()) + "_" +
+                          ss.str();
 
-    Console::readChar();
-    draw();
+    if (game->saveGame(saveName)) {
+        Console::setCursorPosition(x + 2, y + 30);
+        Console::setColor(TextColor::Green, bodyBg);
+        Console::print("Game saved successfully!");
+    } else {
+        Console::setCursorPosition(x + 2, y + 30);
+        Console::setColor(TextColor::Red, bodyBg);
+        Console::print("Error saving game: " + game->getLastError());
+    }
+
+    Console::sleep(1500);
+    Console::clear();
+}
+
+void MainScreen::advanceDay() {
+    if (!game) {
+        Console::setCursorPosition(x + 2, y + 30);
+        Console::setColor(TextColor::Red, bodyBg);
+        Console::print("Error: Game not initialized!");
+        Console::sleep(1500);
+        return;
+    }
+
+    if (game->getStatus() != GameStatus::Running) {
+        if (!game->start()) {
+            Console::setCursorPosition(x + 2, y + 30);
+            Console::setColor(TextColor::Red, bodyBg);
+            Console::print("Error starting game: " + game->getLastError());
+            Console::sleep(1500);
+            return;
+        }
+    }
+
+    if (game->simulateDay()) {
+        Console::setCursorPosition(x + 2, y + 30);
+        Console::setColor(TextColor::Green, bodyBg);
+        Console::print("Advanced to next day!");
+
+        // Check for game over conditions
+        update();
+    } else {
+        Console::setCursorPosition(x + 2, y + 30);
+        Console::setColor(TextColor::Red, bodyBg);
+        Console::print("Error advancing day: " + game->getLastError());
+    }
+
+    Console::sleep(1500);
 }
 
 }

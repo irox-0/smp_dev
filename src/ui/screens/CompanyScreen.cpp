@@ -222,6 +222,7 @@ void CompanyScreen::drawPriceChart() const {
     Console::drawHorizontalLine(x, y + 19, width);
 }
 
+// This function needs to be updated in CompanyScreen.cpp
 void CompanyScreen::drawLatestNews() const {
     Console::setCursorPosition(x + 2, y + 20);
     Console::setColor(TextColor::White, bodyBg);
@@ -241,9 +242,29 @@ void CompanyScreen::drawLatestNews() const {
     const std::vector<News>& allNews = newsServicePtr->getNewsHistory();
     std::vector<News> companyNews;
 
+    // Fix: improved filtering logic for company news
     for (const auto& news : allNews) {
-        auto newsCompany = news.getTargetCompany().lock();
-        if (newsCompany && newsCompany->getTicker() == company->getTicker()) {
+        // Check if it's a corporate news targeting this company
+        if (news.getType() == NewsType::Corporate) {
+            auto newsCompany = news.getTargetCompany().lock();
+
+            // First check the company pointer directly
+            if (newsCompany && newsCompany->getTicker() == company->getTicker()) {
+                companyNews.push_back(news);
+                continue;
+            }
+
+            // If no direct match but the news content contains the company name or ticker
+            // (Additional fallback check to catch news that might have lost its company reference)
+            if (news.getTitle().find(company->getName()) != std::string::npos ||
+                news.getTitle().find(company->getTicker()) != std::string::npos ||
+                news.getContent().find(company->getName()) != std::string::npos ||
+                news.getContent().find(company->getTicker()) != std::string::npos) {
+                companyNews.push_back(news);
+            }
+        }
+        // Also include sector news that affect this company's sector
+        else if (news.getType() == NewsType::Sector && news.getTargetSector() == company->getSector()) {
             companyNews.push_back(news);
         }
     }
@@ -269,7 +290,7 @@ void CompanyScreen::drawLatestNews() const {
 
         Console::setCursorPosition(x + 2, currentY + i);
         Console::setColor(TextColor::Cyan, bodyBg);
-        Console::print(news.getPublishDate().toShortString() + ": ");
+        Console::print(news.getPublishDate().toString() + ": ");
         Console::setColor(bodyFg, bodyBg);
         Console::print(news.getTitle());
     }

@@ -397,10 +397,25 @@ void Player::updateDailyState() {
     updateMarginAvailable();
 }
 
-void Player::processLoans() {
+    void Player::processLoans() {
     for (auto& loan : loans) {
         if (!loan.getIsPaid()) {
+            // Update loan state (accruing interest/penalties)
             loan.update(currentDate);
+
+            // Check if today is the due date
+            if (loan.getDueDate() == currentDate) {
+                double totalDue = loan.getTotalDue();
+
+                // Check if player has enough money to repay
+                if (portfolio->getCashBalance() >= totalDue) {
+                    // Automatically repay the loan
+                    portfolio->withdrawCash(totalDue);
+                    loan.markAsPaid();
+                }
+                // If not enough money, the game will end due to loan default
+                // (This is handled in MainScreen::checkGameOverConditions)
+            }
         }
     }
 }

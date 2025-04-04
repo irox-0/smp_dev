@@ -167,18 +167,43 @@ void PortfolioScreen::drawPortfolioInfo() const {
     std::stringstream fundsStr;
     fundsStr << std::fixed << std::setprecision(2) << portfolio->getCashBalance() << "$";
     Console::print(fundsStr.str());
+    currentY += 1;
 
-    Console::setCursorPosition(x, y + 6);
+    // Add margin account information
+    Console::setCursorPosition(x + 2, currentY);
     Console::setColor(bodyFg, bodyBg);
-    Console::drawHorizontalLine(x, y + 6, width);
+    Console::print("Margin Balance: ");
+    Console::setColor(TextColor::Magenta, bodyBg);
 
-    Console::setCursorPosition(x + 2, y + 7);
+    std::stringstream marginBalanceStr;
+    marginBalanceStr << std::fixed << std::setprecision(2) << playerPtr->getMarginAccountBalance() << "$";
+    Console::print(marginBalanceStr.str());
+    currentY += 1;
+
+    Console::setCursorPosition(x + 2, currentY);
+    Console::setColor(bodyFg, bodyBg);
+    Console::print("Margin Used: ");
+
+    if (playerPtr->getMarginUsed() > 0) {
+        Console::setColor(TextColor::Red, bodyBg);
+    } else {
+        Console::setColor(TextColor::Green, bodyBg);
+    }
+
+    std::stringstream marginUsedStr;
+    marginUsedStr << std::fixed << std::setprecision(2) << playerPtr->getMarginUsed() << "$";
+    Console::print(marginUsedStr.str());
+
+    Console::setCursorPosition(x, y + 8);
+    Console::setColor(bodyFg, bodyBg);
+    Console::drawHorizontalLine(x, y + 8, width);
+
+    Console::setCursorPosition(x + 2, y + 9);
     Console::setColor(TextColor::White, bodyBg);
     Console::setStyle(TextStyle::Bold);
     Console::print("Portfolio Structure:");
     Console::setStyle(TextStyle::Regular);
 }
-
 void PortfolioScreen::drawPortfolioTable() const {
     portfolioTable.draw();
 
