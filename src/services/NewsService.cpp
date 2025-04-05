@@ -145,32 +145,54 @@ std::vector<News> NewsService::generateDailyNews(int newsCount) {
 
     MarketTrend currentTrend = marketPtr->getCurrentTrend();
 
-    if (Random::getBool(0.7)) {
+    // Try to generate news of each type, checking for duplicates
+    int maxAttempts = count * 3; // Allow multiple attempts to find unique news
+    int attempts = 0;
+
+    // Try to generate global news
+    if (Random::getBool(0.7) && generatedNews.size() < count) {
         News globalNews = generateRandomNews(NewsType::Global);
-        generatedNews.push_back(globalNews);
+        if (!isDuplicateNews(globalNews)) {
+            generatedNews.push_back(globalNews);
+        }
     }
 
+    // Try to generate sector news
     if (Random::getBool(0.5) && generatedNews.size() < count) {
         News sectorNews = generateRandomNews(NewsType::Sector);
-        generatedNews.push_back(sectorNews);
+        if (!isDuplicateNews(sectorNews)) {
+            generatedNews.push_back(sectorNews);
+        }
     }
 
+    // Try to generate corporate news
     if (Random::getBool(0.7) && generatedNews.size() < count) {
         News corporateNews = generateRandomNews(NewsType::Corporate);
-        generatedNews.push_back(corporateNews);
+        if (!isDuplicateNews(corporateNews)) {
+            generatedNews.push_back(corporateNews);
+        }
     }
 
-    while (generatedNews.size() < count) {
+    // Keep generating random news until we reach the desired count or max attempts
+    while (generatedNews.size() < count && attempts < maxAttempts) {
         NewsType randomType = static_cast<NewsType>(Random::getInt(0, 2));
         News randomNews = generateRandomNews(randomType);
-        generatedNews.push_back(randomNews);
+
+        // Only add if it's not a duplicate
+        if (!isDuplicateNews(randomNews)) {
+            generatedNews.push_back(randomNews);
+        }
+
+        attempts++;
     }
 
+    // Set publish date and add to history
     for (auto& news : generatedNews) {
         news.setPublishDate(currentDate);
         newsHistory.push_back(news);
     }
 
+    // Maintain a reasonable history size
     const size_t MAX_HISTORY_SIZE = 1000;
     if (newsHistory.size() > MAX_HISTORY_SIZE) {
         newsHistory.erase(newsHistory.begin(), newsHistory.begin() + (newsHistory.size() - MAX_HISTORY_SIZE));
@@ -178,7 +200,6 @@ std::vector<News> NewsService::generateDailyNews(int newsCount) {
 
     return generatedNews;
 }
-
 News NewsService::generateRandomNews(NewsType type) {
     auto marketPtr = market.lock();
     if (!marketPtr) {
@@ -418,5 +439,41 @@ NewsService NewsService::fromJson(const nlohmann::json& json, std::weak_ptr<Mark
     
     return service;
 }
+bool NewsService::isDuplicateNews(const News& news) const {
+    // Check the recent news history (last 10 items is usually sufficient)
+    size_t checkCount = std::min(newsHistory.size(), static_cast<size_t>(10));
 
+    for (size_t i = newsHistory.size() - checkCount; i < newsHistory.size(); i++) {
+        const News& existingNews = newsHistory[i];
+
+        // If date, title, and type match, consider it a duplicate
+        if (existingNews.getPublishDate() == news.getPublishDate() &&
+            existingNews.getTitle() == news.getTitle() &&
+            existingNews.getType() == news.getType()) {
+
+            // For company news, check if they target the same company
+            if (news.getType() == NewsType::Corporate) {
+                auto existingCompany = existingNews.getTargetCompany().lock();
+                auto newCompany = news.getTargetCompany().lock();
+
+                // If both have valid companies and they are the same
+                if (existingCompany && newCompany &&
+                    existingCompany->getTicker() == newCompany->getTicker()) {
+                    return true;
+                    }
+            }
+            // For sector news, check if they target the same sector
+            else if (news.getType() == NewsType::Sector &&
+                     existingNews.getTargetSector() == news.getTargetSector()) {
+                return true;
+                     }
+            // For global news, title and date matching is sufficient
+            else if (news.getType() == NewsType::Global) {
+                return true;
+            }
+            }
+    }
+
+    return false;
+}
 }

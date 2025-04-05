@@ -54,7 +54,7 @@ void MainScreen::update() {
 }
 
     // Update this method in MainScreen.cpp
-    void MainScreen::checkGameOverConditions() {
+void MainScreen::checkGameOverConditions() {
     if (!game) return;
 
     auto playerPtr = player.lock();
@@ -64,6 +64,15 @@ void MainScreen::update() {
     if (playerPtr->getPortfolio()->getTotalValue() <= 0.01) {
         gameOver("Game Over: You've run out of money!");
         return;
+    }
+
+    // Check for margin call
+    if (playerPtr->getMarginLoan() > 0) {
+        // Use the simplified margin call check - total assets < margin loan
+        if (playerPtr->checkMarginCall()) {
+            gameOver("Game Over: Margin Call! Your assets are worth less than your margin loan.");
+            return;
+        }
     }
 
     // Check for any overdue loans that haven't been repaid

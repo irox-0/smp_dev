@@ -35,6 +35,8 @@ private:
 
     NewsTemplate selectNewsTemplate(NewsType type, MarketTrend trend);
 
+    bool isDuplicateNews(const News& news) const;
+
 public:
     NewsService();
     NewsService(std::weak_ptr<Market> market);

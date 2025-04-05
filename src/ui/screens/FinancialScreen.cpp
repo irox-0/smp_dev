@@ -28,7 +28,7 @@ void FinancialScreen::initialize() {
     loansTable.setBodyColors(bodyFg, bodyBg);
 
     marginTable.setPosition(x + 2, y + 11);
-    std::vector<std::string> marginHeaders = {"Used", "Available", "Rate"};
+    std::vector<std::string> marginHeaders = {"Amount", "Available", "Rate"};
     marginTable.setHeaders(marginHeaders);
     std::vector<int> marginColumnWidths = {12, 12, 8};
     marginTable.setColumnWidths(marginColumnWidths);
@@ -53,7 +53,7 @@ void FinancialScreen::updateLoansTable() {
     loansTable.clearData();
 
     const std::vector<Loan>& loans = playerPtr->getLoans();
-    int currentDay = playerPtr->getCurrentDay();
+    Date currentDate = playerPtr->getCurrentDate();
 
     for (size_t i = 0; i < loans.size(); i++) {
         const Loan& loan = loans[i];
@@ -68,7 +68,7 @@ void FinancialScreen::updateLoansTable() {
         std::stringstream interestStr;
         interestStr << std::fixed << std::setprecision(1) << (loan.getInterestRate() * 100.0) << "%";
 
-        int daysRemaining = loan.daysRemaining(currentDay);
+        int daysRemaining = loan.daysRemaining(currentDate);
         std::string dueInStr = std::to_string(daysRemaining) + " days";
 
         std::stringstream totalDueStr;
@@ -94,17 +94,17 @@ void FinancialScreen::updateMarginTable() {
 
     marginTable.clearData();
 
-    std::stringstream usedStr;
-    usedStr << std::fixed << std::setprecision(2) << playerPtr->getMarginUsed() << "$";
+    std::stringstream loanStr;
+    loanStr << std::fixed << std::setprecision(2) << playerPtr->getMarginLoan() << "$";
 
     std::stringstream availableStr;
-    availableStr << std::fixed << std::setprecision(2) << playerPtr->getMarginAvailable() << "$";
+    availableStr << std::fixed << std::setprecision(2) << playerPtr->getMaxMarginLoan() << "$";
 
     std::stringstream rateStr;
     rateStr << std::fixed << std::setprecision(1) << (playerPtr->getMarginInterestRate() * 100.0) << "%";
 
     std::vector<std::string> row = {
-        usedStr.str(),
+        loanStr.str(),
         availableStr.str(),
         rateStr.str()
     };
@@ -209,92 +209,75 @@ void FinancialScreen::drawMarginInfo() const {
     }
 
     Console::setCursorPosition(x + 2, y + 8);
-    Console::setColor(bodyFg, bodyBg);
-    Console::print("Current Leverage: 1: ");
-
-    double leverage = 0.0;
-    double portfolioValue = playerPtr->getPortfolio()->getTotalStocksValue();
-
-    if (portfolioValue > 0 && playerPtr->getMarginUsed() > 0) {
-        leverage = (portfolioValue + playerPtr->getMarginUsed()) / portfolioValue;
-        Console::setColor(TextColor::Yellow, bodyBg);
-        std::stringstream leverageStr;
-        leverageStr << std::fixed << std::setprecision(1) << leverage;
-        Console::print(leverageStr.str());
-    } else {
-        Console::setColor(TextColor::Green, bodyBg);
-        Console::print("1.0");
-    }
-
-    Console::setCursorPosition(x + 2, y + 9);
-    Console::setColor(bodyFg, bodyBg);
-    Console::print("Margin Requirement: ");
-
-    std::stringstream reqStr;
-    reqStr << std::fixed << std::setprecision(1) << (playerPtr->getMarginRequirement() * 100.0) << "%";
-    Console::setColor(TextColor::Cyan, bodyBg);
-    Console::print(reqStr.str());
-
-    // Add maintenance requirement explanation
-    Console::setCursorPosition(x + 2, y + 10);
-    Console::setColor(TextColor::Yellow, bodyBg);
-    Console::print("(Minimum equity that must be maintained)");
-
-    Console::setCursorPosition(x + 2, y + 12);
     Console::setColor(TextColor::White, bodyBg);
-    Console::print("Margin Account Status:");
+    Console::setStyle(TextStyle::Bold);
+    Console::print("MARGIN LOAN INFORMATION:");
+    Console::setStyle(TextStyle::Regular);
 
-    // Display margin account balance more clearly
-    Console::setCursorPosition(x + 4, y + 13);
+    // Current margin loan
+    Console::setCursorPosition(x + 4, y + 10);
     Console::setColor(bodyFg, bodyBg);
-    Console::print("Balance: ");
-    Console::setColor(TextColor::Green, bodyBg);
-    std::stringstream balanceStr;
-    balanceStr << std::fixed << std::setprecision(2) << playerPtr->getMarginAccountBalance() << "$";
-    Console::print(balanceStr.str());
+    Console::print("Current Margin Loan: ");
 
-    // Display margin used clearly
-    Console::setCursorPosition(x + 4, y + 14);
-    Console::setColor(bodyFg, bodyBg);
-    Console::print("Used: ");
-    if (playerPtr->getMarginUsed() > 0) {
+    double marginLoan = playerPtr->getMarginLoan();
+    std::stringstream loanStr;
+    loanStr << std::fixed << std::setprecision(2) << marginLoan << "$";
+
+    if (marginLoan > 0) {
         Console::setColor(TextColor::Red, bodyBg);
     } else {
         Console::setColor(TextColor::Green, bodyBg);
     }
-    std::stringstream usedStr;
-    usedStr << std::fixed << std::setprecision(2) << playerPtr->getMarginUsed() << "$";
-    Console::print(usedStr.str());
+    Console::print(loanStr.str());
 
-    // Display available margin
-    Console::setCursorPosition(x + 4, y + 15);
+    // Maximum available loan
+    Console::setCursorPosition(x + 4, y + 11);
     Console::setColor(bodyFg, bodyBg);
-    Console::print("Available: ");
+    Console::print("Available to Borrow: ");
     Console::setColor(TextColor::Cyan, bodyBg);
-    std::stringstream availableStr;
-    availableStr << std::fixed << std::setprecision(2) << playerPtr->getMarginAvailable() << "$";
-    Console::print(availableStr.str());
 
-    // Display margin interest rate
-    Console::setCursorPosition(x + 4, y + 16);
+    double maxLoan = playerPtr->getMaxMarginLoan();
+    std::stringstream maxLoanStr;
+    maxLoanStr << std::fixed << std::setprecision(2) << maxLoan << "$";
+    Console::print(maxLoanStr.str());
+
+    // Interest rate
+    Console::setCursorPosition(x + 4, y + 12);
     Console::setColor(bodyFg, bodyBg);
-    Console::print("Rate: ");
+    Console::print("Interest Rate: ");
     Console::setColor(TextColor::Yellow, bodyBg);
+
     std::stringstream rateStr;
-    rateStr << std::fixed << std::setprecision(1) << (playerPtr->getMarginInterestRate() * 100.0) << "%";
+    rateStr << std::fixed << std::setprecision(1) << (playerPtr->getMarginInterestRate() * 100.0) << "% weekly";
     Console::print(rateStr.str());
 
-    // Margin call warning if close to maintenance requirement
-    portfolioValue = playerPtr->getPortfolio()->getTotalStocksValue();
-    double requiredEquity = portfolioValue * playerPtr->getMarginRequirement();
-    double actualEquity = portfolioValue + playerPtr->getMarginAccountBalance() - playerPtr->getMarginUsed();
+    // Loan limit explanation
+    Console::setCursorPosition(x + 4, y + 14);
+    Console::setColor(TextColor::White, bodyBg);
+    Console::print("Margin Trading Rules:");
 
-    if (actualEquity < requiredEquity * 1.2 && playerPtr->getMarginUsed() > 0) {
-        Console::setCursorPosition(x + 2, y + 18);
+    Console::setCursorPosition(x + 3, y + 15);
+    Console::setColor(bodyFg, bodyBg);
+    Console::print("1. You can borrow up to 2x your portfolio value");
+
+    Console::setCursorPosition(x + 3, y + 16);
+    Console::print("2. Interest accrues daily on your margin loan");
+
+    Console::setCursorPosition(x + 3, y + 17);
+    Console::print("3. If your total assets fall below your loan");
+
+    Console::setCursorPosition(x + 9, y + 18);
+    Console::print("amount, a margin call will be triggered");
+
+    // Margin call warning if close to threshold
+    double totalAssets = playerPtr->getTotalAssetValue();
+    if (marginLoan > 0 && totalAssets < marginLoan * 1.2) {
+        Console::setCursorPosition(x + 4, y + 20);
         Console::setColor(TextColor::Red, bodyBg);
-        Console::print("WARNING: Close to margin call threshold!");
+        Console::print("WARNING: Your assets are close to margin call threshold!");
     }
 }
+
 void FinancialScreen::drawAvailableLoans() const {
     auto playerPtr = player.lock();
     if (!playerPtr) {
@@ -749,25 +732,17 @@ void FinancialScreen::manageMarginAccount() {
     currentSection = FinancialSection::MarginAccount;
     draw();
 
-    for (int i = y + 20; i < y + 23; i++) {
-        Console::setCursorPosition(x, i);
-        Console::setColor(bodyFg, bodyBg);
-        Console::print("|" + std::string(width - 2, ' ') + "|");
-    }
-
     std::vector<std::string> options = {
-        "Deposit to Margin Account",
-        "Withdraw from Margin Account",
+        "Take Margin Loan",
+        "Repay Margin Loan",
         "Return to Loans"
     };
 
     int selected = 0;
     bool running = true;
-    int menuY = y + 18;
+    int menuY = y + 20;
 
     while (running) {
-        updateMarginTable();
-
         for (size_t i = 0; i < options.size(); i++) {
             Console::setCursorPosition(x + 2, menuY + static_cast<int>(i));
 
@@ -785,9 +760,6 @@ void FinancialScreen::manageMarginAccount() {
             }
         }
 
-        Console::setCursorPosition(x + 4, menuY + static_cast<int>(options.size()) + 1);
-        Console::setColor(bodyFg, bodyBg);
-
         char key = Console::readChar();
 
         switch (key) {
@@ -802,11 +774,11 @@ void FinancialScreen::manageMarginAccount() {
             case static_cast<char>(Key::Enter):
                 switch (selected) {
                     case 0:
-                        depositToMargin();
+                        takeMarginLoan();
                         break;
 
                     case 1:
-                        withdrawFromMargin();
+                        repayMarginLoan();
                         break;
 
                     case 2:
@@ -826,129 +798,148 @@ void FinancialScreen::manageMarginAccount() {
 
     draw();
 }
-void FinancialScreen::depositToMargin() {
+
+void FinancialScreen::takeMarginLoan() {
     auto playerPtr = player.lock();
     if (!playerPtr) {
         return;
     }
 
-    double availableCash = playerPtr->getPortfolio()->getCashBalance();
+    double maxLoan = playerPtr->getMaxMarginLoan();
+    Console::setCursorPosition(x+1, y + 19);
 
-    if (availableCash <= 0) {
-        Console::setCursorPosition(x + 4, y + 22);
+    for (int i = 19; i < 23 ; i++) {
+            Console::setCursorPosition(x + 1, i);
+            Console::print(std::string(width - 2, ' '));
+    }
+
+    if (maxLoan <= 0) {
+        Console::setCursorPosition(x + 4, y + 19);
         Console::setColor(TextColor::Red, bodyBg);
-        Console::print("No cash available to deposit!");
+        Console::print("You cannot borrow any more on margin!");
 
-        Console::setCursorPosition(x + 4, y + 23);
+        Console::setCursorPosition(x + 4, y + 20);
         Console::setColor(bodyFg, bodyBg);
-        Console::print("Press any key to continue.");
-
+        Console::print("Press any key to continue...");
         Console::readChar();
         return;
     }
 
-    Console::setCursorPosition(x + 4, y + 22);
-    Console::setColor(TextColor::White, bodyBg);
-    Console::print("Enter amount to deposit (max " +
-                  std::to_string(static_cast<int>(availableCash)) + "$): ");
+    Console::setCursorPosition(x + 4, y + 19);
+    Console::setColor(bodyFg, bodyBg);
+    Console::print("Enter amount to borrow (max " +
+                  std::to_string(static_cast<int>(maxLoan)) + "$): ");
 
-    Console::setCursorPosition(x + 4, y + 23);
+    Console::setCursorPosition(x + 4, y + 20);
     Console::setColor(TextColor::Yellow, bodyBg);
-
     std::string input = Console::readLine();
-    double amount = 0.0;
 
+    double amount = 0.0;
     try {
         amount = std::stod(input);
     } catch (...) {
         amount = 0.0;
     }
 
-    if (amount <= 0 || amount > availableCash) {
-        Console::setCursorPosition(x + 4, y + 23);
-        Console::setColor(TextColor::Red, bodyBg);
-        Console::print("Invalid amount! Press any key to continue.");
-        Console::readChar();
-    } else {
-        bool success = playerPtr->depositToMarginAccount(amount);
+    Console::setCursorPosition(x + 4, y + 22);
 
-        Console::setCursorPosition(x + 4, y + 23);
+    if (amount <= 0 || amount > maxLoan) {
+        Console::setColor(TextColor::Red, bodyBg);
+        Console::print("Invalid amount! Transaction canceled.");
+    } else {
+        bool success = playerPtr->takeMarginLoan(amount);
 
         if (success) {
             Console::setColor(TextColor::Green, bodyBg);
-            Console::print("Deposit successful! Press any key to continue.");
-
-            update();
+            Console::print("Successfully borrowed " + std::to_string(static_cast<int>(amount)) + "$ on margin!");
         } else {
             Console::setColor(TextColor::Red, bodyBg);
-            Console::print("Deposit failed! Press any key to continue.");
+            Console::print("Transaction failed!");
         }
-
-        Console::readChar();
     }
+
+    Console::setCursorPosition(x + 4, y + 23);
+    Console::setColor(bodyFg, bodyBg);
+    Console::print("Press any key to continue...");
+    Console::readChar();
 }
 
-void FinancialScreen::withdrawFromMargin() {
+void FinancialScreen::repayMarginLoan() {
     auto playerPtr = player.lock();
     if (!playerPtr) {
         return;
     }
 
-    double marginBalance = playerPtr->getMarginAccountBalance();
+    double marginLoan = playerPtr->getMarginLoan();
 
-    if (marginBalance <= 0) {
-        // Show error message
+    for (int i = 19; i < 23 ; i++) {
+            Console::setCursorPosition(x + 1, i);
+            Console::print(std::string(width - 2, ' '));
+    }
+    if (marginLoan <= 0) {
         Console::setCursorPosition(x + 4, y + 22);
-        Console::setColor(TextColor::Red, bodyBg);
-        Console::print("No funds in margin account to withdraw!");
+        Console::setColor(TextColor::Green, bodyBg);
+        Console::print("You don't have any margin loan to repay!");
 
-        Console::setCursorPosition(x + 4, y + 24);
+        Console::setCursorPosition(x + 4, y + 23);
         Console::setColor(bodyFg, bodyBg);
-        Console::print("Press any key to continue.");
-
+        Console::print("Press any key to continue...");
         Console::readChar();
         return;
     }
 
-    Console::setCursorPosition(x + 4, y + 22);
-    Console::setColor(TextColor::White, bodyBg);
-    Console::print("Enter amount to withdraw (max " +
-                  std::to_string(static_cast<int>(marginBalance)) + "$): ");
+    double cashBalance = playerPtr->getPortfolio()->getCashBalance();
+    double maxRepay = std::min(marginLoan, cashBalance);
 
-    Console::setCursorPosition(x + 4, y + 23);
+    if (maxRepay <= 0) {
+        Console::setCursorPosition(x + 4, y + 22);
+        Console::setColor(TextColor::Red, bodyBg);
+        Console::print("You don't have any cash to repay your margin loan!");
+
+        Console::setCursorPosition(x + 4, y + 23);
+        Console::setColor(bodyFg, bodyBg);
+        Console::print("Press any key to continue...");
+        Console::readChar();
+        return;
+    }
+
+    Console::setCursorPosition(x + 4, y + 19);
+    Console::setColor(bodyFg, bodyBg);
+    Console::print("Enter amount to repay (max " +
+                  std::to_string(static_cast<int>(maxRepay)) + "$): ");
+
+    Console::setCursorPosition(x + 4, y + 20);
     Console::setColor(TextColor::Yellow, bodyBg);
-
     std::string input = Console::readLine();
-    double amount = 0.0;
 
+    double amount = 0.0;
     try {
         amount = std::stod(input);
     } catch (...) {
         amount = 0.0;
     }
 
-    if (amount <= 0 || amount > marginBalance) {
-        Console::setCursorPosition(x + 4, y + 23);
-        Console::setColor(TextColor::Red, bodyBg);
-        Console::print("Invalid amount! Press any key to continue.");
-        Console::readChar();
-    } else {
-        bool success = playerPtr->withdrawFromMarginAccount(amount);
+    Console::setCursorPosition(x + 4, y + 2);
 
-        Console::setCursorPosition(x + 4, y + 23);
+    if (amount <= 0 || amount > maxRepay) {
+        Console::setColor(TextColor::Red, bodyBg);
+        Console::print("Invalid amount! Transaction canceled.");
+    } else {
+        bool success = playerPtr->repayMarginLoan(amount);
 
         if (success) {
             Console::setColor(TextColor::Green, bodyBg);
-            Console::print("Successful! Press any key to continue.");
-
-            update();
+            Console::print("Successfully repaid " + std::to_string(static_cast<int>(amount)) + "$ of margin loan!");
         } else {
             Console::setColor(TextColor::Red, bodyBg);
-            Console::print("Failed! Press any key to continue.");
+            Console::print("Transaction failed!");
         }
-
-        Console::readChar();
     }
+
+    Console::setCursorPosition(x + 4, y + 23);
+    Console::setColor(bodyFg, bodyBg);
+    Console::print("Press any key to continue...");
+    Console::readChar();
 }
 
 FinancialSection FinancialScreen::getCurrentSection() const {

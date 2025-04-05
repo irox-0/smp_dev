@@ -122,7 +122,7 @@ double Loan::calculateDailyInterest() const {
     if (isPaid) {
         return 0.0;
     }
-    return amount * (interestRate / 365.0);
+    return amount * (interestRate / 7.0);
 }
 
 double Loan::calculateDailyPenalty() const {
@@ -176,7 +176,7 @@ int Loan::daysRemaining(const Date& currentDate) const {
 }
 
 double Loan::calculateTotalInterest(double amount, double rate, int days) {
-    return amount * rate * (days / 365.0);
+    return amount * rate * (days / 7.0);
 }
 
 nlohmann::json Loan::toJson() const {

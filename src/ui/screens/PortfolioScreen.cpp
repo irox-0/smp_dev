@@ -169,30 +169,47 @@ void PortfolioScreen::drawPortfolioInfo() const {
     Console::print(fundsStr.str());
     currentY += 1;
 
-    // Add margin account information
+    // Display margin loan information
     Console::setCursorPosition(x + 2, currentY);
     Console::setColor(bodyFg, bodyBg);
-    Console::print("Margin Balance: ");
-    Console::setColor(TextColor::Magenta, bodyBg);
+    Console::print("Margin Loan: ");
 
-    std::stringstream marginBalanceStr;
-    marginBalanceStr << std::fixed << std::setprecision(2) << playerPtr->getMarginAccountBalance() << "$";
-    Console::print(marginBalanceStr.str());
-    currentY += 1;
+    double marginLoan = playerPtr->getMarginLoan();
 
-    Console::setCursorPosition(x + 2, currentY);
-    Console::setColor(bodyFg, bodyBg);
-    Console::print("Margin Used: ");
-
-    if (playerPtr->getMarginUsed() > 0) {
+    if (marginLoan > 0) {
         Console::setColor(TextColor::Red, bodyBg);
     } else {
         Console::setColor(TextColor::Green, bodyBg);
     }
 
-    std::stringstream marginUsedStr;
-    marginUsedStr << std::fixed << std::setprecision(2) << playerPtr->getMarginUsed() << "$";
-    Console::print(marginUsedStr.str());
+    std::stringstream marginLoanStr;
+    marginLoanStr << std::fixed << std::setprecision(2) << marginLoan << "$";
+    Console::print(marginLoanStr.str());
+    currentY += 1;
+
+    // Display leverage information if using margin
+    if (marginLoan > 0) {
+        Console::setCursorPosition(x + 2, currentY);
+        Console::setColor(bodyFg, bodyBg);
+        Console::print("Current Leverage: ");
+
+        double portfolioValue = portfolio->getTotalValue();
+        double ownedValue = portfolioValue - marginLoan;
+        double leverage = (ownedValue > 0) ? portfolioValue / ownedValue : 999.0;
+
+        // Color based on risk level
+        if (leverage > 2.5) {
+            Console::setColor(TextColor::Red, bodyBg);
+        } else if (leverage > 1.75) {
+            Console::setColor(TextColor::Yellow, bodyBg);
+        } else {
+            Console::setColor(TextColor::Green, bodyBg);
+        }
+
+        std::stringstream leverageStr;
+        leverageStr << std::fixed << std::setprecision(2) << leverage << "x";
+        Console::print(leverageStr.str());
+    }
 
     Console::setCursorPosition(x, y + 8);
     Console::setColor(bodyFg, bodyBg);
@@ -204,6 +221,7 @@ void PortfolioScreen::drawPortfolioInfo() const {
     Console::print("Portfolio Structure:");
     Console::setStyle(TextStyle::Regular);
 }
+
 void PortfolioScreen::drawPortfolioTable() const {
     portfolioTable.draw();
 
@@ -730,6 +748,7 @@ void PortfolioScreen::sellStocks() {
         update();
     }
 
-    draw();}
+    draw();
+}
 
 }

@@ -8,11 +8,9 @@ namespace StockMarketSimulator {
 Player::Player()
     : name("Player"),
       portfolio(std::make_unique<Portfolio>()),
-      marginAccountBalance(0.0),
-      marginUsed(0.0),
+      marginLoan(0.0),
       marginInterestRate(0.07),
-      marginAvailable(0.0),
-      marginRequirement(0.5),
+      marginLimitMultiplier(2.0),
       currentDate()
 {
 }
@@ -20,11 +18,9 @@ Player::Player()
 Player::Player(const std::string& name, double initialBalance)
     : name(name),
       portfolio(std::make_unique<Portfolio>(initialBalance)),
-      marginAccountBalance(0.0),
-      marginUsed(0.0),
+      marginLoan(0.0),
       marginInterestRate(0.07),
-      marginAvailable(0.0),
-      marginRequirement(0.5),
+      marginLimitMultiplier(2.0),
       currentDate()
 {
 }
@@ -37,28 +33,21 @@ Portfolio* Player::getPortfolio() const {
     return portfolio.get();
 }
 
-double Player::getMarginAccountBalance() const {
-    return marginAccountBalance;
-}
-
-double Player::getMarginUsed() const {
-    return marginUsed;
-}
-
-double Player::getMarginAvailable() const {
-    return marginAvailable;
-}
-
-double Player::getMarginRequirement() const {
-    return marginRequirement;
+double Player::getMarginLoan() const {
+    return marginLoan;
 }
 
 double Player::getMarginInterestRate() const {
     return marginInterestRate;
 }
 
+double Player::getMaxMarginLoan() const {
+    double portfolioValue = portfolio->getTotalValue();
+    return portfolioValue * marginLimitMultiplier - marginLoan;
+}
+
 double Player::getTotalAssetValue() const {
-    return portfolio->getCashBalance() + portfolio->getTotalStocksValue() + marginAccountBalance;
+    return portfolio->getCashBalance() + portfolio->getTotalStocksValue();
 }
 
 double Player::getTotalLiabilities() const {
@@ -68,7 +57,7 @@ double Player::getTotalLiabilities() const {
             totalLoanDebt += loan.getTotalDue();
         }
     }
-    return totalLoanDebt + marginUsed;
+    return totalLoanDebt + marginLoan;
 }
 
 double Player::getNetWorth() const {
@@ -102,37 +91,19 @@ void Player::setCurrentDate(const Date& date) {
     this->currentDate = date;
 }
 
-void Player::updateMarginAvailable() {
-    double portfolioValue = portfolio->getTotalStocksValue();
-    double maxMargin = portfolioValue * (1.0 - marginRequirement);
-    double availableMargin = maxMargin + marginAccountBalance - marginUsed;
-
-    marginAvailable = std::max(0.0, availableMargin);
-}
-
-bool Player::checkMarginCall() {
-    double portfolioValue = portfolio->getTotalStocksValue();
-    double requiredEquity = portfolioValue * marginRequirement;
-    double actualEquity = portfolioValue + marginAccountBalance - marginUsed;
-
-    bool isMarginCall = actualEquity < requiredEquity;
-
-    if (!isMarginCall && portfolio->getPreviousDayValue() > 0) {
-        double previousStocksValue = portfolio->getPreviousDayValue() - portfolio->getCashBalance();
-        double currentStocksValue = portfolioValue;
-
-        if (currentStocksValue < previousStocksValue * 0.7 && marginUsed > 0) {
-            isMarginCall = true;
-        }
+bool Player::checkMarginCall() const {
+    if (marginLoan <= 0.0) {
+        return false;
     }
 
-    return isMarginCall;
+    double totalAssets = portfolio->getTotalValue();
+    return totalAssets < marginLoan;
 }
 
 void Player::accrueMarginInterest() {
-    if (marginUsed > 0.0) {
-        double dailyInterest = marginUsed * (marginInterestRate / 365.0);
-        marginUsed += dailyInterest;
+    if (marginLoan > 0.0) {
+        double dailyInterest = marginLoan * (marginInterestRate / 7.0);
+        marginLoan += dailyInterest;
     }
 }
 
@@ -150,32 +121,34 @@ bool Player::buyStock(std::shared_ptr<Company> company, int quantity, bool useMa
     double commission = 0.01;
     double totalCost = price * quantity * (1.0 + commission);
 
+    // If the player has enough cash, use that
     if (totalCost <= portfolio->getCashBalance()) {
         return portfolio->buyStock(company, quantity, price, commission, currentDate);
     }
 
+    // If using margin is allowed and there's available margin
     if (useMargin) {
-        updateMarginAvailable();
         double availableCash = portfolio->getCashBalance();
+        double marginNeeded = totalCost - availableCash;
 
-        double totalAvailable = availableCash + marginAvailable;
+        // Check if the player can borrow more
+        if (marginNeeded <= getMaxMarginLoan()) {
+            // Take additional margin loan
+            marginLoan += marginNeeded;
 
-        if (totalAvailable >= totalCost) {
-            double marginNeeded = totalCost - availableCash;
-
-            marginUsed += marginNeeded;
-
+            // Add funds to portfolio
             portfolio->depositCash(marginNeeded);
 
+            // Execute the buy
             bool result = portfolio->buyStock(company, quantity, price, commission, currentDate);
 
             if (!result) {
+                // If purchase failed, revert the margin loan
+                marginLoan -= marginNeeded;
                 portfolio->withdrawCash(marginNeeded);
-                marginUsed -= marginNeeded;
                 return false;
             }
 
-            updateMarginAvailable();
             return true;
         }
     }
@@ -200,17 +173,13 @@ bool Player::sellStock(std::shared_ptr<Company> company, int quantity) {
 
     bool result = portfolio->sellStock(company, quantity, price, commission, currentDate);
 
-    if (result && marginUsed > 0.0) {
+    if (result && marginLoan > 0.0) {
         double cashAfter = portfolio->getCashBalance();
         double sellProceeds = cashAfter - cashBefore;
 
-        double marginToRepay = std::min(marginUsed, sellProceeds);
-        if (marginToRepay > 0) {
-            marginUsed -= marginToRepay;
-            portfolio->withdrawCash(marginToRepay);
-        }
-
-        updateMarginAvailable();
+        // Optionally repay part of the margin loan with proceeds
+        // This is now a choice rather than automatic
+        // Could be implemented if automatic paydown is desired
     }
 
     return result;
@@ -221,7 +190,7 @@ bool Player::takeLoan(double amount, double interestRate, int durationDays, cons
         return false;
     }
 
-    double creditLimit = (portfolio->getTotalValue() + marginAccountBalance) * 0.7;
+    double creditLimit = (portfolio->getTotalValue()) * 0.7;
     double currentDebt = getTotalLiabilities();
 
     if (amount + currentDebt > creditLimit) {
@@ -280,8 +249,23 @@ bool Player::withdrawCash(double amount) {
     return portfolio->withdrawCash(amount);
 }
 
-bool Player::depositToMarginAccount(double amount) {
+bool Player::takeMarginLoan(double amount) {
     if (amount <= 0.0) {
+        return false;
+    }
+
+    double maxLoan = getMaxMarginLoan();
+    if (amount > maxLoan) {
+        return false;
+    }
+
+    marginLoan += amount;
+    portfolio->depositCash(amount);
+    return true;
+}
+
+bool Player::repayMarginLoan(double amount) {
+    if (amount <= 0.0 || amount > marginLoan) {
         return false;
     }
 
@@ -289,44 +273,8 @@ bool Player::depositToMarginAccount(double amount) {
         return false;
     }
 
-    bool result = portfolio->withdrawCash(amount);
-    if (result) {
-        marginAccountBalance += amount;
-        updateMarginAvailable();
-    }
-
-    return result;
-}
-
-bool Player::withdrawFromMarginAccount(double amount) {
-    if (amount <= 0.0 || amount > marginAccountBalance) {
-        return false;
-    }
-
-    marginAccountBalance -= amount;
-    portfolio->depositCash(amount);
-    updateMarginAvailable();
-
-    return true;
-}
-
-bool Player::adjustMarginRequirement(double newRequirement) {
-    if (newRequirement < 0.1 || newRequirement > 1.0) {
-        return false;
-    }
-
-    marginRequirement = newRequirement;
-    updateMarginAvailable();
-
-    return true;
-}
-
-bool Player::adjustMarginInterestRate(double newRate) {
-    if (newRate < 0.01 || newRate > 0.2) {
-        return false;
-    }
-
-    marginInterestRate = newRate;
+    marginLoan -= amount;
+    portfolio->withdrawCash(amount);
     return true;
 }
 
@@ -345,59 +293,48 @@ void Player::updateDailyState() {
 
     accrueMarginInterest();
 
+    // Check for margin call with simplified approach
     if (checkMarginCall()) {
-        double portfolioValue = portfolio->getTotalStocksValue();
-        double requiredEquity = portfolioValue * marginRequirement;
-        double actualEquity = portfolioValue + marginAccountBalance - marginUsed;
-        double deficitAmount = requiredEquity - actualEquity;
-
-        bool shouldSellShares = true;
-        double availableCash = portfolio->getCashBalance();
-
-        if (availableCash >= deficitAmount && !shouldSellShares) {
-            portfolio->withdrawCash(deficitAmount);
-            marginAccountBalance += deficitAmount;
-        } else {
-            auto marketPtr = market.lock();
-            if (!marketPtr) return;
-
+        // Try to remedy the situation by selling some stocks
+        auto marketPtr = market.lock();
+        if (marketPtr) {
+            // Sort positions by unrealized profit/loss (sell worst performing first)
             std::vector<std::pair<std::string, double>> positions;
             for (const auto& [ticker, position] : portfolio->getPositions()) {
                 positions.push_back({ticker, position.unrealizedProfitLossPercent});
             }
 
             std::sort(positions.begin(), positions.end(),
-                     [](const auto& a, const auto& b) { return a.second < b.second; });
+                    [](const auto& a, const auto& b) { return a.second < b.second; });
 
+            // Try to sell some stocks to cover the margin
             for (const auto& [ticker, _] : positions) {
                 auto company = marketPtr->getCompanyByTicker(ticker);
                 if (!company) continue;
 
                 int sharesOwned = portfolio->getPositionQuantity(ticker);
                 if (sharesOwned > 0) {
-                    int sharesToSell = std::max(1, sharesOwned / 10);
-                    bool result = sellStock(company, sharesToSell);
-                    if (result) {
+                    // Sell a portion of the shares
+                    int sharesToSell = std::max(1, sharesOwned / 2);
+                    sellStock(company, sharesToSell);
+
+                    // Check if we've resolved the margin call
+                    if (!checkMarginCall()) {
                         break;
                     }
                 }
             }
 
-            double newAvailableCash = portfolio->getCashBalance();
-            if (newAvailableCash > 0) {
-                double amountToDeposit = std::min(newAvailableCash, deficitAmount);
-                if (amountToDeposit > 0) {
-                    portfolio->withdrawCash(amountToDeposit);
-                    marginAccountBalance += amountToDeposit;
-                }
+            // If still in margin call, try to repay some of the margin loan with cash
+            if (checkMarginCall() && portfolio->getCashBalance() > 0) {
+                double amountToRepay = std::min(portfolio->getCashBalance(), marginLoan);
+                repayMarginLoan(amountToRepay);
             }
         }
     }
-
-    updateMarginAvailable();
 }
 
-    void Player::processLoans() {
+void Player::processLoans() {
     for (auto& loan : loans) {
         if (!loan.getIsPaid()) {
             // Update loan state (accruing interest/penalties)
@@ -434,10 +371,9 @@ nlohmann::json Player::toJson() const {
 
     j["name"] = name;
     j["portfolio"] = portfolio->toJson();
-    j["margin_account_balance"] = marginAccountBalance;
-    j["margin_used"] = marginUsed;
+    j["margin_loan"] = marginLoan;
     j["margin_interest_rate"] = marginInterestRate;
-    j["margin_requirement"] = marginRequirement;
+    j["margin_limit_multiplier"] = marginLimitMultiplier;
     j["current_date"] = currentDate.toJson();
 
     j["loans"] = nlohmann::json::array();
@@ -451,10 +387,28 @@ nlohmann::json Player::toJson() const {
 Player Player::fromJson(const nlohmann::json& json, std::weak_ptr<Market> market) {
     Player player;
     player.name = json["name"];
-    player.marginAccountBalance = json["margin_account_balance"];
-    player.marginUsed = json["margin_used"];
-    player.marginInterestRate = json["margin_interest_rate"];
-    player.marginRequirement = json["margin_requirement"];
+
+    // Handle margin properties with backward compatibility
+    if (json.contains("margin_loan")) {
+        player.marginLoan = json["margin_loan"];
+    } else if (json.contains("margin_used")) {
+        // For backward compatibility
+        player.marginLoan = json["margin_used"];
+    } else {
+        player.marginLoan = 0.0;
+    }
+
+    if (json.contains("margin_interest_rate")) {
+        player.marginInterestRate = json["margin_interest_rate"];
+    } else {
+        player.marginInterestRate = 0.07; // Default value
+    }
+
+    if (json.contains("margin_limit_multiplier")) {
+        player.marginLimitMultiplier = json["margin_limit_multiplier"];
+    } else {
+        player.marginLimitMultiplier = 2.0; // Default value
+    }
 
     if (json.contains("current_date")) {
         player.currentDate = Date::fromJson(json["current_date"]);
@@ -466,18 +420,16 @@ Player Player::fromJson(const nlohmann::json& json, std::weak_ptr<Market> market
     }
 
     player.market = market;
-    
+
     auto marketPtr = market.lock();
     if (marketPtr) {
         player.portfolio.reset(new Portfolio(Portfolio::fromJson(json["portfolio"], marketPtr->getCompanies())));
     }
-    
+
     player.loans.clear();
     for (const auto& loanJson : json["loans"]) {
         player.loans.push_back(Loan::fromJson(loanJson));
     }
-    
-    player.updateMarginAvailable();
     
     return player;
 }
