@@ -39,13 +39,13 @@ void CompanyScreen::initialize() {
 
     priceChart.setPosition(x + 2, y + 8);
     priceChart.setSize(width - 4, 10);
-    priceChart.setTitle("Price Chart (3 months)");
+    priceChart.setTitle("Price Chart");
     priceChart.setColor(TextColor::Green);
 
     update();
 }
 
-    void CompanyScreen::update() {
+void CompanyScreen::update() {
     Screen::update();
 
     if (!company) {
@@ -61,7 +61,7 @@ void CompanyScreen::initialize() {
     size_t historySize = history.size();
 
     std::vector<double> displayData;
-    size_t numPoints = std::min(historySize, static_cast<size_t>(90)); // 3 months data
+    size_t numPoints = std::min(historySize, static_cast<size_t>(90));
 
     if (numPoints > 0) {
         size_t startIndex = (historySize > numPoints) ? historySize - numPoints : 0;
@@ -73,28 +73,29 @@ void CompanyScreen::initialize() {
     priceChart.setData(displayData);
 
     auto marketPtr = market.lock();
-    if (marketPtr) {
+    if (marketPtr && numPoints > 0) {
         Date currentDate = marketPtr->getCurrentDate();
         std::vector<std::string> labels;
 
-        // Create month labels based on the current date going back 3 months
-        for (int i = 3; i >= 0; i--) {
+        int maxLabels = 5;
+        int interval = std::max(1, static_cast<int>(numPoints) / (maxLabels - 1));
+
+        for (int i = 0; i < static_cast<int>(numPoints); i += interval) {
+            if (labels.size() >= maxLabels) break;
+
             Date labelDate = currentDate;
+            labelDate.advanceDays(-(static_cast<int>(numPoints) - 1 - i));
 
-            // Go back i months (approximate by subtracting 30 days per month)
-            labelDate.advanceDays(-30 * i);
-
-            // Format as "DD/MM"
             labels.push_back(labelDate.toShortString());
         }
 
+        if (!labels.empty() && labels.size() < maxLabels) {
+            labels.push_back(currentDate.toShortString());
+        }
+
         priceChart.setXLabels(labels);
-    } else {
-        std::vector<std::string> defaultLabels = {"15/12", "15/01", "15/02", "15/03"};
-        priceChart.setXLabels(defaultLabels);
     }
 }
-
 void CompanyScreen::drawContent() const {
     if (!company) {
         Console::setCursorPosition(x + 2, y + 2);
@@ -222,7 +223,6 @@ void CompanyScreen::drawPriceChart() const {
     Console::drawHorizontalLine(x, y + 19, width);
 }
 
-// This function needs to be updated in CompanyScreen.cpp
 void CompanyScreen::drawLatestNews() const {
     Console::setCursorPosition(x + 2, y + 20);
     Console::setColor(TextColor::White, bodyBg);
@@ -242,20 +242,15 @@ void CompanyScreen::drawLatestNews() const {
     const std::vector<News>& allNews = newsServicePtr->getNewsHistory();
     std::vector<News> companyNews;
 
-    // Fix: improved filtering logic for company news
     for (const auto& news : allNews) {
-        // Check if it's a corporate news targeting this company
         if (news.getType() == NewsType::Corporate) {
             auto newsCompany = news.getTargetCompany().lock();
 
-            // First check the company pointer directly
             if (newsCompany && newsCompany->getTicker() == company->getTicker()) {
                 companyNews.push_back(news);
                 continue;
             }
 
-            // If no direct match but the news content contains the company name or ticker
-            // (Additional fallback check to catch news that might have lost its company reference)
             if (news.getTitle().find(company->getName()) != std::string::npos ||
                 news.getTitle().find(company->getTicker()) != std::string::npos ||
                 news.getContent().find(company->getName()) != std::string::npos ||
@@ -263,7 +258,6 @@ void CompanyScreen::drawLatestNews() const {
                 companyNews.push_back(news);
             }
         }
-        // Also include sector news that affect this company's sector
         else if (news.getType() == NewsType::Sector && news.getTargetSector() == company->getSector()) {
             companyNews.push_back(news);
         }

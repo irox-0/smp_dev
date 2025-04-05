@@ -214,7 +214,6 @@ void FinancialScreen::drawMarginInfo() const {
     Console::print("MARGIN LOAN INFORMATION:");
     Console::setStyle(TextStyle::Regular);
 
-    // Current margin loan
     Console::setCursorPosition(x + 4, y + 10);
     Console::setColor(bodyFg, bodyBg);
     Console::print("Current Margin Loan: ");
@@ -230,7 +229,6 @@ void FinancialScreen::drawMarginInfo() const {
     }
     Console::print(loanStr.str());
 
-    // Maximum available loan
     Console::setCursorPosition(x + 4, y + 11);
     Console::setColor(bodyFg, bodyBg);
     Console::print("Available to Borrow: ");
@@ -241,7 +239,6 @@ void FinancialScreen::drawMarginInfo() const {
     maxLoanStr << std::fixed << std::setprecision(2) << maxLoan << "$";
     Console::print(maxLoanStr.str());
 
-    // Interest rate
     Console::setCursorPosition(x + 4, y + 12);
     Console::setColor(bodyFg, bodyBg);
     Console::print("Interest Rate: ");
@@ -251,7 +248,6 @@ void FinancialScreen::drawMarginInfo() const {
     rateStr << std::fixed << std::setprecision(1) << (playerPtr->getMarginInterestRate() * 100.0) << "% weekly";
     Console::print(rateStr.str());
 
-    // Loan limit explanation
     Console::setCursorPosition(x + 4, y + 14);
     Console::setColor(TextColor::White, bodyBg);
     Console::print("Margin Trading Rules:");
@@ -269,7 +265,6 @@ void FinancialScreen::drawMarginInfo() const {
     Console::setCursorPosition(x + 9, y + 18);
     Console::print("amount, a margin call will be triggered");
 
-    // Margin call warning if close to threshold
     double totalAssets = playerPtr->getTotalAssetValue();
     if (marginLoan > 0 && totalAssets < marginLoan * 1.2) {
         Console::setCursorPosition(x + 4, y + 20);

@@ -4,6 +4,7 @@
 #include <sstream>
 #include <iomanip>
 #include <cmath>
+#include <set>
 
 namespace StockMarketSimulator {
 
@@ -11,12 +12,11 @@ PortfolioScreen::PortfolioScreen()
     : Screen("MY PORTFOLIO", ScreenType::Portfolio),
       currentPage(0),
       itemsPerPage(3),
-      totalPages(1)
-{
+      totalPages(1) {
     setSize(50, 38);
 }
 
-void PortfolioScreen::initialize() {
+ void PortfolioScreen::initialize() {
     Screen::initialize();
 
     portfolioTable.setPosition(x, y + 8);
@@ -31,20 +31,6 @@ void PortfolioScreen::initialize() {
     valueChart.setSize(width - 4, 6);
     valueChart.setTitle("");
     valueChart.setColor(TextColor::Green);
-
-    std::vector<std::string> labels;
-    auto marketPtr = market.lock();
-    if (marketPtr) {
-        Date currentDate = marketPtr->getCurrentDate();
-        for (int i = 30; i >= 0; i -= 7) {
-            Date labelDate = currentDate;
-            labelDate.advanceDays(-i);
-            labels.push_back(labelDate.toShortString());
-        }
-        valueChart.setXLabels(labels);
-    } else {
-        valueChart.setXLabels({"", "10d", "20d", "30d"});
-    }
 
 
     update();
@@ -86,8 +72,46 @@ void PortfolioScreen::update() {
     }
 
     valueChart.setData(displayData);
-}
 
+    std::vector<std::string> labels;
+    auto marketPtr = market.lock();
+
+    if (marketPtr && numPoints > 0) {
+        Date currentDate = marketPtr->getCurrentDate();
+
+        int maxLabels = std::min(5, numPoints);
+
+        if (numPoints <= maxLabels) {
+            std::set<std::string> uniqueDates;
+
+            for (int i = 0; i < numPoints; i++) {
+                Date labelDate = currentDate;
+                labelDate.advanceDays(-(numPoints - 1 - i));
+                uniqueDates.insert(labelDate.toShortString());
+            }
+
+            labels = std::vector<std::string>(uniqueDates.begin(), uniqueDates.end());
+        }
+        else {
+            double step = static_cast<double>(numPoints - 1) / (maxLabels - 1);
+
+            std::set<std::string> uniqueDates;
+
+            for (int i = 0; i < maxLabels; i++) {
+                int index = static_cast<int>(i * step + 0.5);
+                index = std::min(index, numPoints - 1);
+
+                Date labelDate = currentDate;
+                labelDate.advanceDays(-(numPoints - 1 - index));
+                uniqueDates.insert(labelDate.toShortString());
+            }
+
+            labels = std::vector<std::string>(uniqueDates.begin(), uniqueDates.end());
+        }
+    }
+
+    valueChart.setXLabels(labels);
+}
 void PortfolioScreen::drawContent() const {
     drawPortfolioInfo();
     drawPortfolioTable();
@@ -169,7 +193,6 @@ void PortfolioScreen::drawPortfolioInfo() const {
     Console::print(fundsStr.str());
     currentY += 1;
 
-    // Display margin loan information
     Console::setCursorPosition(x + 2, currentY);
     Console::setColor(bodyFg, bodyBg);
     Console::print("Margin Loan: ");
@@ -187,7 +210,6 @@ void PortfolioScreen::drawPortfolioInfo() const {
     Console::print(marginLoanStr.str());
     currentY += 1;
 
-    // Display leverage information if using margin
     if (marginLoan > 0) {
         Console::setCursorPosition(x + 2, currentY);
         Console::setColor(bodyFg, bodyBg);
@@ -197,7 +219,6 @@ void PortfolioScreen::drawPortfolioInfo() const {
         double ownedValue = portfolioValue - marginLoan;
         double leverage = (ownedValue > 0) ? portfolioValue / ownedValue : 999.0;
 
-        // Color based on risk level
         if (leverage > 2.5) {
             Console::setColor(TextColor::Red, bodyBg);
         } else if (leverage > 1.75) {

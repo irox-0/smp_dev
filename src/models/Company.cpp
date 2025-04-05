@@ -59,7 +59,6 @@ void DividendPolicy::scheduleNextPayment(const Date& currentDate) {
     }
 }
 
-// Backward compatibility method
 void DividendPolicy::scheduleNextPayment(int currentDay) {
     Date currentDate = Date::fromDayNumber(currentDay);
     scheduleNextPayment(currentDate);

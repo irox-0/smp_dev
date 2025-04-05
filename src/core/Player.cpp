@@ -121,29 +121,22 @@ bool Player::buyStock(std::shared_ptr<Company> company, int quantity, bool useMa
     double commission = 0.01;
     double totalCost = price * quantity * (1.0 + commission);
 
-    // If the player has enough cash, use that
     if (totalCost <= portfolio->getCashBalance()) {
         return portfolio->buyStock(company, quantity, price, commission, currentDate);
     }
 
-    // If using margin is allowed and there's available margin
     if (useMargin) {
         double availableCash = portfolio->getCashBalance();
         double marginNeeded = totalCost - availableCash;
 
-        // Check if the player can borrow more
         if (marginNeeded <= getMaxMarginLoan()) {
-            // Take additional margin loan
             marginLoan += marginNeeded;
 
-            // Add funds to portfolio
             portfolio->depositCash(marginNeeded);
 
-            // Execute the buy
             bool result = portfolio->buyStock(company, quantity, price, commission, currentDate);
 
             if (!result) {
-                // If purchase failed, revert the margin loan
                 marginLoan -= marginNeeded;
                 portfolio->withdrawCash(marginNeeded);
                 return false;
@@ -177,9 +170,6 @@ bool Player::sellStock(std::shared_ptr<Company> company, int quantity) {
         double cashAfter = portfolio->getCashBalance();
         double sellProceeds = cashAfter - cashBefore;
 
-        // Optionally repay part of the margin loan with proceeds
-        // This is now a choice rather than automatic
-        // Could be implemented if automatic paydown is desired
     }
 
     return result;
@@ -293,12 +283,9 @@ void Player::updateDailyState() {
 
     accrueMarginInterest();
 
-    // Check for margin call with simplified approach
     if (checkMarginCall()) {
-        // Try to remedy the situation by selling some stocks
         auto marketPtr = market.lock();
         if (marketPtr) {
-            // Sort positions by unrealized profit/loss (sell worst performing first)
             std::vector<std::pair<std::string, double>> positions;
             for (const auto& [ticker, position] : portfolio->getPositions()) {
                 positions.push_back({ticker, position.unrealizedProfitLossPercent});
@@ -307,25 +294,21 @@ void Player::updateDailyState() {
             std::sort(positions.begin(), positions.end(),
                     [](const auto& a, const auto& b) { return a.second < b.second; });
 
-            // Try to sell some stocks to cover the margin
             for (const auto& [ticker, _] : positions) {
                 auto company = marketPtr->getCompanyByTicker(ticker);
                 if (!company) continue;
 
                 int sharesOwned = portfolio->getPositionQuantity(ticker);
                 if (sharesOwned > 0) {
-                    // Sell a portion of the shares
                     int sharesToSell = std::max(1, sharesOwned / 2);
                     sellStock(company, sharesToSell);
 
-                    // Check if we've resolved the margin call
                     if (!checkMarginCall()) {
                         break;
                     }
                 }
             }
 
-            // If still in margin call, try to repay some of the margin loan with cash
             if (checkMarginCall() && portfolio->getCashBalance() > 0) {
                 double amountToRepay = std::min(portfolio->getCashBalance(), marginLoan);
                 repayMarginLoan(amountToRepay);
@@ -337,21 +320,16 @@ void Player::updateDailyState() {
 void Player::processLoans() {
     for (auto& loan : loans) {
         if (!loan.getIsPaid()) {
-            // Update loan state (accruing interest/penalties)
             loan.update(currentDate);
 
-            // Check if today is the due date
             if (loan.getDueDate() == currentDate) {
                 double totalDue = loan.getTotalDue();
 
-                // Check if player has enough money to repay
                 if (portfolio->getCashBalance() >= totalDue) {
                     // Automatically repay the loan
                     portfolio->withdrawCash(totalDue);
                     loan.markAsPaid();
                 }
-                // If not enough money, the game will end due to loan default
-                // (This is handled in MainScreen::checkGameOverConditions)
             }
         }
     }
@@ -388,7 +366,6 @@ Player Player::fromJson(const nlohmann::json& json, std::weak_ptr<Market> market
     Player player;
     player.name = json["name"];
 
-    // Handle margin properties with backward compatibility
     if (json.contains("margin_loan")) {
         player.marginLoan = json["margin_loan"];
     } else if (json.contains("margin_used")) {
@@ -401,13 +378,13 @@ Player Player::fromJson(const nlohmann::json& json, std::weak_ptr<Market> market
     if (json.contains("margin_interest_rate")) {
         player.marginInterestRate = json["margin_interest_rate"];
     } else {
-        player.marginInterestRate = 0.07; // Default value
+        player.marginInterestRate = 0.07;
     }
 
     if (json.contains("margin_limit_multiplier")) {
         player.marginLimitMultiplier = json["margin_limit_multiplier"];
     } else {
-        player.marginLimitMultiplier = 2.0; // Default value
+        player.marginLimitMultiplier = 2.0;
     }
 
     if (json.contains("current_date")) {

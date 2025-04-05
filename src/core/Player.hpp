@@ -18,9 +18,9 @@ private:
     std::string name;
     std::unique_ptr<Portfolio> portfolio;
     std::vector<Loan> loans;
-    double marginLoan;           // Amount borrowed on margin
-    double marginInterestRate;   // Interest rate for margin loans
-    double marginLimitMultiplier; // How much the player can borrow (e.g., 2.0 = 2x their portfolio value)
+    double marginLoan;
+    double marginInterestRate;
+    double marginLimitMultiplier;
     Date currentDate;
     std::weak_ptr<Market> market;
 
