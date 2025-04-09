@@ -326,7 +326,6 @@ void Player::processLoans() {
                 double totalDue = loan.getTotalDue();
 
                 if (portfolio->getCashBalance() >= totalDue) {
-                    // Automatically repay the loan
                     portfolio->withdrawCash(totalDue);
                     loan.markAsPaid();
                 }
@@ -369,7 +368,6 @@ Player Player::fromJson(const nlohmann::json& json, std::weak_ptr<Market> market
     if (json.contains("margin_loan")) {
         player.marginLoan = json["margin_loan"];
     } else if (json.contains("margin_used")) {
-        // For backward compatibility
         player.marginLoan = json["margin_used"];
     } else {
         player.marginLoan = 0.0;

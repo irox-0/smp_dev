@@ -20,7 +20,6 @@ void MainScreen::setGame(std::shared_ptr<Game> game) {
     this->game = game;
 
     if (game) {
-        // Set references to game components
         setMarket(game->getMarket());
         setPlayer(game->getPlayer());
         setNewsService(game->getNewsService());
@@ -49,36 +48,29 @@ void MainScreen::update() {
     updateTopStocks();
     updateLatestNews();
 
-    // Check for game over conditions
     checkGameOverConditions();
 }
 
-    // Update this method in MainScreen.cpp
 void MainScreen::checkGameOverConditions() {
     if (!game) return;
 
     auto playerPtr = player.lock();
     if (!playerPtr) return;
 
-    // Check if player has no money left
     if (playerPtr->getPortfolio()->getTotalValue() <= 0.01) {
         gameOver("Game Over: You've run out of money!");
         return;
     }
 
-    // Check for margin call
     if (playerPtr->getMarginLoan() > 0) {
-        // Use the simplified margin call check - total assets < margin loan
         if (playerPtr->checkMarginCall()) {
             gameOver("Game Over: Margin Call! Your assets are worth less than your margin loan.");
             return;
         }
     }
 
-    // Check for any overdue loans that haven't been repaid
     for (const auto& loan : playerPtr->getLoans()) {
         if (!loan.getIsPaid() && loan.isOverdue(playerPtr->getCurrentDate())) {
-            // If loan is overdue and cannot be repaid with available cash
             if (loan.getTotalDue() > playerPtr->getPortfolio()->getCashBalance()) {
                 gameOver("Game Over: Loan Default! You failed to repay a loan on time.");
                 return;
@@ -88,12 +80,10 @@ void MainScreen::checkGameOverConditions() {
 }
 
 void MainScreen::gameOver(const std::string& message) {
-    // Pause the game
     if (game) {
         game->pause();
     }
 
-    // Display game over message
     int messageY = y + height / 2;
 
     for (int i = -2; i <= 2; i++) {
@@ -135,7 +125,7 @@ void MainScreen::updateTopStocks() {
               [](const auto& a, const auto& b) {
                   double changeA = a->getStock()->getDayChangePercent();
                   double changeB = b->getStock()->getDayChangePercent();
-                  return changeA > changeB; // Descending order
+                  return changeA > changeB;
               });
 
     if (topStocks.size() > 5) {
@@ -496,13 +486,11 @@ void MainScreen::saveGame() const {
         return;
     }
 
-    // Generate a timestamp for the filename
     auto now = std::chrono::system_clock::now();
     auto time = std::chrono::system_clock::to_time_t(now);
     std::stringstream ss;
     ss << std::put_time(std::localtime(&time), "%Y%m%d_%H%M%S");
 
-    // Create save name using player name and date
     std::string saveName = playerPtr->getName() + "_Day" +
                           std::to_string(playerPtr->getCurrentDay()) + "_" +
                           ss.str();
@@ -545,7 +533,6 @@ void MainScreen::advanceDay() {
         Console::setColor(TextColor::Green, bodyBg);
         Console::print("Advanced to next day!");
 
-        // Check for game over conditions
         update();
     } else {
         Console::setCursorPosition(x + 2, y + 30);

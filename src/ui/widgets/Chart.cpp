@@ -131,7 +131,6 @@ void Chart::draw() const {
     int chartY = y;
     int chartHeight = height;
 
-    // Draw title if present
     if (!title.empty()) {
         Console::setCursorPosition(x, chartY);
         Console::print(title, color);

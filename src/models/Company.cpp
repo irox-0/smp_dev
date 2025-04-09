@@ -36,7 +36,6 @@ bool DividendPolicy::shouldPayDividend(const Date& currentDate) const {
     return currentDate >= nextPaymentDay;
 }
 
-// Backward compatibility method
 bool DividendPolicy::shouldPayDividend(int currentDay) const {
     Date currentDate = Date::fromDayNumber(currentDay);
     return shouldPayDividend(currentDate);
@@ -296,7 +295,6 @@ void Company::closeTradingDay(const Date& currentDate) {
     }
 }
 
-// Backward compatibility method
 void Company::closeTradingDay() {
     if (stock) {
         stock->closeDay();

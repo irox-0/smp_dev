@@ -256,7 +256,7 @@ bool SaveService::checkAndCreateAutosave() {
 
     if (daysDifference >= autosaveInterval) {
         std::string displayName = "Autosave - " + currentDate.toString();
-        bool result = saveGame(displayName, true);  // Pass true for isAutosave flag
+        bool result = saveGame(displayName, true);
 
         if (result) {
             lastAutosaveDate = currentDate;

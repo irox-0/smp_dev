@@ -28,7 +28,6 @@ namespace StockMarketSimulator {
         void manageMarginAccount();
         void displayLoanOptions() const;
 
-        // New methods for simplified margin trading
         void takeMarginLoan();
         void repayMarginLoan();
 
