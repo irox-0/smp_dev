@@ -16,27 +16,28 @@ void Game::initialize(const std::string& playerName, double initialBalance) {
     try {
         market = std::make_shared<Market>();
         market->addDefaultCompanies();
-        
-        player = std::make_shared<Player>(playerName, initialBalance);
-        player->setMarket(market);
-        player->setCurrentDate(startDate);
-        
+
         newsService = std::make_shared<NewsService>(market);
         newsService->initialize();
         newsService->setCurrentDate(startDate);
-        
+
         priceService = std::make_shared<PriceService>(market);
         priceService->initialize();
-        
-        saveService = std::make_shared<SaveService>(market, player, newsService, priceService);
-        saveService->initialize();
-        
+
         for (int i = 0; i < 5; i++) {
             auto news = newsService->generateDailyNews(2);
             newsService->applyNewsEffects(news);
             market->simulateDay();
         }
-        
+
+        player = std::make_shared<Player>(playerName, initialBalance);
+        player->setMarket(market);
+        player->setCurrentDate(market->getCurrentDate());
+
+        saveService = std::make_shared<SaveService>(market, player, newsService, priceService);
+        saveService->initialize();
+
+
         status = GameStatus::NotStarted;
         simulatedDays = 0;
         lastError = "";
@@ -45,7 +46,6 @@ void Game::initialize(const std::string& playerName, double initialBalance) {
         status = GameStatus::Ended;
     }
 }
-
 bool Game::start() {
     if (status == GameStatus::NotStarted || status == GameStatus::Paused) {
         status = GameStatus::Running;
