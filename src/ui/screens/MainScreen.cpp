@@ -410,7 +410,7 @@ bool MainScreen::handleInput(int key) {
             return false;
 
         default:
-            return Screen::handleInput(key);
+            return true;
     }
 }
 

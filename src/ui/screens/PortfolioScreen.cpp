@@ -16,7 +16,7 @@ PortfolioScreen::PortfolioScreen()
     setSize(50, 38);
 }
 
- void PortfolioScreen::initialize() {
+void PortfolioScreen::initialize() {
     Screen::initialize();
 
     portfolioTable.setPosition(x, y + 8);
@@ -336,7 +336,7 @@ void PortfolioScreen::drawNavigationOptions() const {
     Console::print("2. Sell Stocks");
 
     Console::setCursorPosition(x + 2, currentY + 2);
-    Console::print("3. Return to Main Menu");
+    Console::print("0. Return to Main Menu");
 
 
     Console::setCursorPosition(x + 2,   height - 1);
@@ -354,8 +354,8 @@ bool PortfolioScreen::handleInput(int key) {
             sellStocks();
             return true;
 
-        case '3':
-        case 27:
+        case '0':
+//        case 27:
             close();
             return false;
 
@@ -368,7 +368,7 @@ bool PortfolioScreen::handleInput(int key) {
             return true;
 
         default:
-            return Screen::handleInput(key);
+            return true;
     }
 }
 
@@ -548,6 +548,7 @@ void PortfolioScreen::viewStockDetails() {
                 break;
 
             default:
+//                running = true;
                 break;
         }
     }

@@ -165,7 +165,8 @@ void NewsScreen::drawNewsList() const {
 
         Console::setCursorPosition(x + 2, newsY);
         Console::setColor(TextColor::Cyan, bodyBg);
-        Console::print(typeStr + " " + dateStr);
+        std::string num = std::to_string( i + 1);
+        Console::print( num + "."  + typeStr + " " + dateStr);
 
         Console::setCursorPosition(x + 2, newsY + 1);
         Console::setColor(bodyFg, bodyBg);
@@ -199,13 +200,13 @@ void NewsScreen::drawNavigationOptions() const {
     Console::print(std::string(width - 4, ' '));
 
     Console::setCursorPosition(x + 2, optionsY + 4);
-    Console::print("6. Change Filter");
+    Console::print("7. Change Filter");
 
     Console::setCursorPosition(x + 2, optionsY + 5);
-    Console::print("7. Previous Page");
+    Console::print("8. Previous Page");
 
     Console::setCursorPosition(x + 2, optionsY + 6);
-    Console::print("8. Next Page");
+    Console::print("9. Next Page");
 
     Console::setCursorPosition(x + 2, optionsY + 7);
     Console::print("0. Return to Main Menu");
@@ -216,7 +217,7 @@ void NewsScreen::drawNavigationOptions() const {
 }
 
 bool NewsScreen::handleInput(int key) {
-    if (key >= '1' && key <= '5') {
+    if (key >= '1' && key <= '6') {
         int newsIndex = key - '1';
         if (newsIndex >= 0 && newsIndex < static_cast<int>(displayedNews.size())) {
             displayNewsDetails(displayedNews[newsIndex]);
@@ -225,15 +226,15 @@ bool NewsScreen::handleInput(int key) {
     }
 
     switch (key) {
-        case '6':
+        case '7':
             changeFilter();
             return true;
 
-        case '7':
+        case '8':
             previousPage();
             return true;
 
-        case '8':
+        case '9':
             nextPage();
             return true;
 
@@ -243,7 +244,7 @@ bool NewsScreen::handleInput(int key) {
             return false;
 
         default:
-            return Screen::handleInput(key);
+            return true;
     }
 }
 

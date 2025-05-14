@@ -188,6 +188,7 @@ void Screen::run() {
 }
 
 void Screen::close() {
+    Console::clear();
     active = false;
 }
 

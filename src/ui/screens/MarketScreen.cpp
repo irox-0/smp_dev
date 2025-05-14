@@ -222,7 +222,7 @@ bool MarketScreen::handleInput(int key) {
         return true;
 
         default:
-            return Screen::handleInput(key);
+            return true;
     }
 }
 
@@ -254,7 +254,7 @@ void MarketScreen::viewCompanyDetails(int index) {
     companyScreen->setCompany(companyPtr);
 
     companyScreen->setNewsService(newsService);
-
+    Console::clear();
     companyScreen->setPosition(x, y);
     companyScreen->setSize(width, height);
 
