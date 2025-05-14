@@ -4,6 +4,7 @@
 #include <sstream>
 #include <iomanip>
 #include <cmath>
+#include <set>
 
 namespace StockMarketSimulator {
 
@@ -75,27 +76,35 @@ void CompanyScreen::update() {
     auto marketPtr = market.lock();
     if (marketPtr && numPoints > 0) {
         Date currentDate = marketPtr->getCurrentDate();
+        Date startDate(1, 3, 2023);
         std::vector<std::string> labels;
 
+        int totalDays = startDate.daysBetween(currentDate) + 1;
+
+        int actualPoints = std::min(static_cast<int>(numPoints), totalDays);
+
         int maxLabels = 5;
-        int interval = std::max(1, static_cast<int>(numPoints) / (maxLabels - 1));
-
-        for (int i = 0; i < static_cast<int>(numPoints); i += interval) {
-            if (labels.size() >= maxLabels) break;
-
-            Date labelDate = currentDate;
-            labelDate.advanceDays(-(static_cast<int>(numPoints) - 1 - i));
-
-            labels.push_back(labelDate.toShortString());
-        }
-
-        if (!labels.empty() && labels.size() < maxLabels) {
+        if (actualPoints <= maxLabels) {
+            for (int i = 0; i < actualPoints; i++) {
+                Date labelDate = startDate;
+                labelDate.advanceDays(i);
+                labels.push_back(labelDate.toShortString());
+            }
+        } else {
+            int interval = std::max(1, actualPoints / (maxLabels - 1));
+            for (int i = 0; i < actualPoints; i += interval) {
+                Date labelDate = startDate;
+                labelDate.advanceDays(i);
+                labels.push_back(labelDate.toShortString());
+                if (labels.size() >= maxLabels - 1) break;
+            }
             labels.push_back(currentDate.toShortString());
         }
 
         priceChart.setXLabels(labels);
     }
 }
+
 void CompanyScreen::drawContent() const {
     if (!company) {
         Console::setCursorPosition(x + 2, y + 2);

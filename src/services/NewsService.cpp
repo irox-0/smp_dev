@@ -134,7 +134,7 @@ std::vector<News> NewsService::getLatestNews(int count) const {
     return result;
 }
 
-std::vector<News> NewsService::generateDailyNews(int newsCount) {
+    std::vector<News> NewsService::generateDailyNews(int newsCount) {
     auto marketPtr = market.lock();
     if (!marketPtr) {
         return {};
@@ -180,6 +180,8 @@ std::vector<News> NewsService::generateDailyNews(int newsCount) {
         attempts++;
     }
 
+    // Explicitly set current date for all news
+    currentDate = marketPtr->getCurrentDate();
     for (auto& news : generatedNews) {
         news.setPublishDate(currentDate);
         newsHistory.push_back(news);

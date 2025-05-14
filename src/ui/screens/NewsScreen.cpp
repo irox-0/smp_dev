@@ -30,7 +30,7 @@ void NewsScreen::update() {
     updateDisplayedNews();
 }
 
-void NewsScreen::updateDisplayedNews() {
+    void NewsScreen::updateDisplayedNews() {
     auto newsServicePtr = newsService.lock();
     if (!newsServicePtr) {
         displayedNews.clear();
@@ -47,16 +47,16 @@ void NewsScreen::updateDisplayedNews() {
         switch (currentFilter) {
             case NewsFilter::All:
                 shouldInclude = true;
-                break;
+            break;
             case NewsFilter::Global:
                 shouldInclude = (news.getType() == NewsType::Global);
-                break;
+            break;
             case NewsFilter::Sector:
                 shouldInclude = (news.getType() == NewsType::Sector);
-                break;
+            break;
             case NewsFilter::Corporate:
                 shouldInclude = (news.getType() == NewsType::Corporate);
-                break;
+            break;
         }
 
         if (shouldInclude) {
@@ -66,6 +66,9 @@ void NewsScreen::updateDisplayedNews() {
 
     std::sort(filteredNews.begin(), filteredNews.end(),
              [](const News& a, const News& b) {
+                 if (a.getPublishDate() == b.getPublishDate()) {
+                     return a.getTitle() > b.getTitle();
+                 }
                  return a.getPublishDate() > b.getPublishDate();
              });
 
@@ -135,32 +138,34 @@ void NewsScreen::drawNewsList() const {
         switch (news.getType()) {
             case NewsType::Global:
                 typeStr = "[GLOBAL]";
-                break;
+            break;
             case NewsType::Sector:
-                {
-                    auto marketPtr = market.lock();
-                    if (marketPtr) {
-                        typeStr = "[SECTOR: " + Market::sectorToString(news.getTargetSector()) + "]";
-                    } else {
-                        typeStr = "[SECTOR]";
-                    }
+            {
+                auto marketPtr = market.lock();
+                if (marketPtr) {
+                    typeStr = "[SECTOR: " + Market::sectorToString(news.getTargetSector()) + "]";
+                } else {
+                    typeStr = "[SECTOR]";
                 }
-                break;
+            }
+            break;
             case NewsType::Corporate:
-                {
-                    auto company = news.getTargetCompany().lock();
-                    if (company) {
-                        typeStr = "[COMPANY: " + company->getName() + "]";
-                    } else {
-                        typeStr = "[COMPANY]";
-                    }
+            {
+                auto company = news.getTargetCompany().lock();
+                if (company) {
+                    typeStr = "[COMPANY: " + company->getName() + "]";
+                } else {
+                    typeStr = "[COMPANY]";
                 }
-                break;
+            }
+            break;
         }
+
+        std::string dateStr = news.getPublishDate().toString();
 
         Console::setCursorPosition(x + 2, newsY);
         Console::setColor(TextColor::Cyan, bodyBg);
-        Console::print(typeStr + " " + news.getPublishDate().toString());
+        Console::print(typeStr + " " + dateStr);
 
         Console::setCursorPosition(x + 2, newsY + 1);
         Console::setColor(bodyFg, bodyBg);
@@ -172,7 +177,6 @@ void NewsScreen::drawNewsList() const {
         newsY += 3;
     }
 }
-
 void NewsScreen::drawNavigationOptions() const {
     int bottomAreaStart = y + height - 10;
 
