@@ -315,13 +315,10 @@ void Company::openTradingDay() {
     }
 }
 
-    // In Company.cpp:
 bool Company::processDividends(const Date& currentDate) {
     if (dividendPolicy.shouldPayDividend(currentDate)) {
-        // Record this payment date
         lastDividendDate = currentDate;
 
-        // Schedule next payment and return true to indicate payment
         dividendPolicy.scheduleNextPayment(currentDate);
         return true;
     }
@@ -382,7 +379,6 @@ std::shared_ptr<Company> Company::fromJson(const nlohmann::json& json) {
 
 void Company::initializeDividendSchedule(const Date& currentDate) {
     if (dividendPolicy.paymentFrequency > 0 && dividendPolicy.nextPaymentDay == Date()) {
-        // Log before initialization
         std::stringstream logMsg;
         logMsg << "Initializing dividend schedule for " << name
                << " - Annual rate: " << dividendPolicy.annualDividendRate
@@ -392,7 +388,6 @@ void Company::initializeDividendSchedule(const Date& currentDate) {
 
         dividendPolicy.scheduleNextPayment(currentDate);
 
-        // Log after initialization
         std::stringstream logMsg2;
         logMsg2 << "Dividend schedule for " << name << " initialized. Next payment on: "
                 << dividendPolicy.nextPaymentDay.toString();

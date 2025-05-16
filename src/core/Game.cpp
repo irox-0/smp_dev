@@ -14,7 +14,7 @@ Game::Game()
 
 void Game::initialize(const std::string& playerName, double initialBalance) {
     try {
-        FileIO::clearLog(); // Clear the log file at the start
+        FileIO::clearLog();
         FileIO::appendToLog("Game initialization started");
         market = std::make_shared<Market>();
         market->addDefaultCompanies();
@@ -26,7 +26,6 @@ void Game::initialize(const std::string& playerName, double initialBalance) {
         priceService = std::make_shared<PriceService>(market);
         priceService->initialize();
 
-        // Initialize dividend schedules for all companies
         for (const auto& company : market->getCompanies()) {
             company->initializeDividendSchedule(startDate);
         }
@@ -95,16 +94,8 @@ bool Game::simulateDay() {
 
         newsService->applyNewsEffects(dailyNews);
 
-        // Process dividends and notify player
-        auto dividendPayments = market->processCompanyDividends();
+        market->processCompanyDividends();
 
-        std::stringstream logMsg;
-        logMsg << "Day " << simulatedDays << " - Processing "
-               << dividendPayments.size() << " dividend payments";
-        FileIO::appendToLog(logMsg.str());
-        for (const auto& [company, amount] : dividendPayments) {
-            player->receiveDividends(company, amount);
-        }
 
         player->updateDailyState();
         player->closeDay();

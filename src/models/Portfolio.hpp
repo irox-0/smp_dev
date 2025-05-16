@@ -106,7 +106,7 @@ public:
     std::vector<double> getValueHistory() const;
     double getPeriodReturn(int days) const;
     double getPeriodReturnPercent(int days) const;
-
+    void checkDividendPayments(const Date& currentDate);
     nlohmann::json toJson() const;
     static Portfolio fromJson(const nlohmann::json& json, const std::vector<std::shared_ptr<Company>>& allCompanies);
     void increaseTotalDividendsReceived(double amount);

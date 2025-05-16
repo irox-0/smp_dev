@@ -269,31 +269,29 @@ bool Player::repayMarginLoan(double amount) {
     return true;
 }
 
-    // In Player.cpp:
-void Player::receiveDividends(std::shared_ptr<Company> company, double amountPerShare) {
-    if (!company || amountPerShare <= 0.0) {
-        return;
-    }
-
-    std::string ticker = company->getTicker();
-    if (portfolio->hasPosition(ticker)) {
-        int shares = portfolio->getPositionQuantity(ticker);
-        double totalAmount = shares * amountPerShare;
-
-        // Log dividend receipt
-        std::stringstream logMsg;
-        logMsg << "Player received dividend: " << totalAmount
-               << "$ for " << shares << " shares of "
-               << company->getName();
-        FileIO::appendToLog(logMsg.str());
-    }
-
-    portfolio->receiveDividends(company, amountPerShare);
-}
+// void Player::receiveDividends(std::shared_ptr<Company> company, double amountPerShare) {
+//     if (!company || amountPerShare <= 0.0) {
+//         return;
+//     }
+//
+//     std::string ticker = company->getTicker();
+//     if (portfolio->hasPosition(ticker)) {
+//         int shares = portfolio->getPositionQuantity(ticker);
+//         double totalAmount = shares * amountPerShare;
+//
+//         std::stringstream logMsg;
+//         logMsg << "Player received dividend: " << totalAmount
+//                << "$ for " << shares << " shares of "
+//                << company->getName();
+//         FileIO::appendToLog(logMsg.str());
+//     }
+//
+//     portfolio->receiveDividends(company, amountPerShare);
+// }
 
 void Player::updateDailyState() {
     portfolio->updatePositionValues();
-
+    portfolio->checkDividendPayments(currentDate);
     processLoans();
 
     accrueMarginInterest();

@@ -37,13 +37,11 @@ void PortfolioPosition::updatePosition(int addedQuantity, double price, const Da
 
     double newTotalCost = totalCost + (addedQuantity * price);
 
-    // Calculate weighted average purchase date when buying more shares
     if (addedQuantity > 0) {
-        Date referenceDate(1, 3, 2023); // Common reference date
+        Date referenceDate(1, 3, 2023);
         int currentDayNum = purchaseDate.toDayNumber(referenceDate);
         int newDayNum = date.toDayNumber(referenceDate);
 
-        // Weighted average based on number of shares
         int weightedTotalDays = currentDayNum * quantity + newDayNum * addedQuantity;
         int newTotalQuantity = quantity + addedQuantity;
 
@@ -79,7 +77,6 @@ void PortfolioPosition::calculateUnrealizedProfitLoss() {
     }
 }
 
-    // In Portfolio.cpp, update PortfolioPosition::toJson:
 nlohmann::json PortfolioPosition::toJson() const {
     nlohmann::json j;
 
@@ -95,7 +92,6 @@ nlohmann::json PortfolioPosition::toJson() const {
     return j;
 }
 
-    // Update PortfolioPosition::fromJson:
 PortfolioPosition PortfolioPosition::fromJson(const nlohmann::json& json, std::shared_ptr<Company> company) {
     PortfolioPosition position;
 
@@ -264,7 +260,6 @@ const PortfolioPosition* Portfolio::getPosition(const std::string& ticker) const
     return nullptr;
 }
 
-    // In Portfolio.cpp:
 bool Portfolio::buyStock(std::shared_ptr<Company> company, int quantity, double price, double commission, const Date& date) {
     if (!company || quantity <= 0 || price <= 0) {
         return false;
@@ -285,15 +280,19 @@ bool Portfolio::buyStock(std::shared_ptr<Company> company, int quantity, double 
     std::string ticker = company->getTicker();
     if (hasPosition(ticker)) {
         positions[ticker].updatePosition(quantity, price, date);
-        // positions[ticker].purchaseDate = date;  // Update purchase date on additional buys
     } else {
         positions[ticker] = PortfolioPosition(company, quantity, price, date);
-        // Set the first dividend date based on purchase date
-        int days = company->getDividendPolicy().daysBetweenPayments;
-        if (days > 0) {
-            Date nextDividend = date;
-            nextDividend.advanceDays(days);
-            positions[ticker].nextDividendDate = nextDividend;
+
+        const DividendPolicy& policy = company->getDividendPolicy();
+        if (policy.annualDividendRate > 0 && policy.paymentFrequency > 0) {
+            positions[ticker].nextDividendDate = date;
+            positions[ticker].nextDividendDate.advanceDays(policy.daysBetweenPayments);
+
+            std::stringstream logMsg;
+            logMsg << "New position dividend schedule for " << company->getName()
+                   << " - First payment on " << positions[ticker].nextDividendDate.toString()
+                   << " (purchased on " << date.toString() << ")";
+            FileIO::appendToLog(logMsg.str());
         }
     }
 
@@ -361,7 +360,6 @@ void Portfolio::updatePortfolioValue() {
     totalValue = cashBalance + stocksValue;
 }
 
-// Updated to use Date
 void Portfolio::closeDay(const Date& date) {
     updatePositionValues();
     recordHistoryEntry(date);
@@ -384,9 +382,6 @@ void Portfolio::recordHistoryEntry(const Date& date) {
     }
 }
 
-    // In Portfolio.cpp:
-    // In Portfolio.cpp:
-// In Portfolio.cpp:
 void Portfolio::receiveDividends(std::shared_ptr<Company> company, double amountPerShare) {
     if (!company || amountPerShare <= 0) {
         return;
@@ -400,37 +395,28 @@ void Portfolio::receiveDividends(std::shared_ptr<Company> company, double amount
     PortfolioPosition& position = positions[ticker];
     Date currentDate = company->getStock()->getLastUpdateDate();
 
-    // Key calculation: Get the previous dividend date
     Date lastDividendDate = company->getLastDividendDate();
 
-    // Get dividend period (time between payments)
     int dividendPeriod = company->getDividendPolicy().daysBetweenPayments;
 
-    // Calculate when this dividend period started (the day after the previous payment)
     Date periodStartDate = lastDividendDate;
     periodStartDate.advanceDays(-dividendPeriod);
 
-    // If shares were purchased during this dividend period, prorate the payment
     int daysInPeriod = dividendPeriod;
     int daysOwned = daysInPeriod;
 
     if (position.purchaseDate > periodStartDate) {
-        // Calculate days owned during this period
         daysOwned = position.purchaseDate.daysBetween(lastDividendDate);
 
-        // Can't be negative
         if (daysOwned < 0) daysOwned = 0;
     }
 
-    // Prorate the dividend based on days owned in the period
     double prorationFactor = static_cast<double>(daysOwned) / daysInPeriod;
     double proratedDividend = amountPerShare * prorationFactor;
 
-    // Calculate total dividend amount
     int shares = position.quantity;
     double dividendAmount = shares * proratedDividend;
 
-    // Log the calculation
     std::stringstream logMsg;
     logMsg << "Dividend calculation for " << company->getName() << ": "
            << shares << " shares × " << proratedDividend << "$ per share = " << dividendAmount
@@ -438,7 +424,6 @@ void Portfolio::receiveDividends(std::shared_ptr<Company> company, double amount
            << (prorationFactor * 100) << "%)";
     FileIO::appendToLog(logMsg.str());
 
-    // Add dividend to cash and total
     cashBalance += dividendAmount;
     totalDividendsReceived += dividendAmount;
     updatePortfolioValue();
@@ -598,4 +583,47 @@ void Portfolio::increaseTotalDividendsReceived(double amount) {
     totalDividendsReceived += amount;
     updatePortfolioValue();
 }
+void Portfolio::checkDividendPayments(const Date& currentDate) {
+    for (auto& [ticker, position] : positions) {
+        const DividendPolicy& policy = position.company->getDividendPolicy();
+
+        if (policy.annualDividendRate <= 0 || policy.paymentFrequency <= 0) {
+            continue;
+        }
+
+        if (position.nextDividendDate == Date()) {
+            position.nextDividendDate = position.purchaseDate;
+            position.nextDividendDate.advanceDays(policy.daysBetweenPayments);
+
+            std::stringstream logMsg;
+            logMsg << "Initialized dividend for " << position.company->getName()
+                   << " position - first payment on " << position.nextDividendDate.toString();
+            FileIO::appendToLog(logMsg.str());
+        }
+
+        if (currentDate >= position.nextDividendDate) {
+            double amountPerShare = policy.calculateDividendAmount();
+            double totalDividend = position.quantity * amountPerShare;
+
+            cashBalance += totalDividend;
+            totalDividendsReceived += totalDividend;
+
+            std::stringstream logMsg;
+            logMsg << "Dividend payment for position " << position.company->getName()
+                   << ": " << position.quantity << " shares × "
+                   << amountPerShare << "$ = " << totalDividend << "$";
+            FileIO::appendToLog(logMsg.str());
+
+            position.nextDividendDate.advanceDays(policy.daysBetweenPayments);
+
+            logMsg.str("");
+            logMsg << "Next dividend for " << position.company->getName()
+                   << " position scheduled for " << position.nextDividendDate.toString();
+            FileIO::appendToLog(logMsg.str());
+        }
+    }
+
+    updatePortfolioValue();
+}
+
 }

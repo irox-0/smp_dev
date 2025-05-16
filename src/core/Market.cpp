@@ -228,18 +228,14 @@ std::vector<std::pair<std::shared_ptr<Company>, double>> Market::processCompanyD
     std::vector<std::pair<std::shared_ptr<Company>, double>> dividendPayments;
 
     for (auto& company : companies) {
-        // Ensure the dividend schedule is initialized
         company->initializeDividendSchedule(currentDate);
 
-        // Check if a dividend should be paid
         if (company->processDividends(currentDate)) {
             double dividendAmount = company->calculateDividendAmount();
 
-            // Only add non-zero payments
             if (dividendAmount > 0.0) {
                 dividendPayments.push_back({company, dividendAmount});
 
-                // Log dividend payment
                 std::stringstream logMsg;
                 logMsg << "Dividend paid: " << company->getName()
                        << " paid " << dividendAmount
