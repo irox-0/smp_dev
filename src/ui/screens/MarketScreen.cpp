@@ -22,7 +22,7 @@ void MarketScreen::initialize() {
     std::vector<std::string> headers = {"Company", "Price", "Change", "Sector"};
     companiesTable.setHeaders(headers);
 
-    std::vector<int> columnWidths = {12, 7, 8, 15};
+    std::vector<int> columnWidths = {14, 6, 7, 15};
     companiesTable.setColumnWidths(columnWidths);
 
     companiesTable.setHeaderColors(TextColor::White, TextColor::Blue);
@@ -51,7 +51,7 @@ void MarketScreen::updateDisplayedCompanies() {
 
 void MarketScreen::updateTableData() {
     companiesTable.clearData();
-
+    int n = 1;
     for (const auto& company : displayedCompanies) {
         Stock* stock = company->getStock();
         if (!stock) continue;
@@ -68,15 +68,16 @@ void MarketScreen::updateTableData() {
         } else {
             changeStr << std::fixed << std::setprecision(2) << priceChangePercent << "%";
         }
-
+        std::string name =  std::to_string(n) + "." + company->getName();
         std::vector<std::string> row = {
-            company->getName(),
+            name,
             priceStr.str(),
             changeStr.str(),
             company->getSectorName()
         };
 
         companiesTable.addRow(row);
+        n++;
     }
 }
 

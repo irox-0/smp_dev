@@ -116,7 +116,7 @@ void Market::addDefaultCompanies() {
         "A leading technology company specializing in software and cloud services",
         Sector::Technology,
         85.75, 0.75,
-        DividendPolicy(1.6, 4)
+        DividendPolicy(52, 52)
     );
 
     auto innovaTech = std::make_shared<Company>(
@@ -132,7 +132,7 @@ void Market::addDefaultCompanies() {
         "An energy company specializing in renewable energy sources",
         Sector::Energy,
         45.20, 0.5,
-        DividendPolicy(3.5, 4)
+        DividendPolicy(26, 52)
     );
 
     auto oilMax = std::make_shared<Company>(
@@ -140,7 +140,7 @@ void Market::addDefaultCompanies() {
         "An oil and gas company with a global presence",
         Sector::Energy,
         76.45, 0.6,
-        DividendPolicy(4.2, 4)
+        DividendPolicy(104, 26)
     );
 
     auto bankCo = std::make_shared<Company>(
@@ -148,7 +148,7 @@ void Market::addDefaultCompanies() {
         "A large commercial bank with a wide range of financial services",
         Sector::Finance,
         32.15, 0.45,
-        DividendPolicy(3.8, 4)
+        DividendPolicy(78, 52)
     );
 
     auto secureFin = std::make_shared<Company>(
@@ -156,7 +156,7 @@ void Market::addDefaultCompanies() {
         "A financial company specializing in insurance and investments",
         Sector::Finance,
         54.80, 0.5,
-        DividendPolicy(2.5, 4)
+        DividendPolicy(26, 26)
     );
 
     auto retailGiant = std::make_shared<Company>(
@@ -164,7 +164,7 @@ void Market::addDefaultCompanies() {
         "The largest chain of retail stores",
         Sector::Consumer,
         23.50, 0.4,
-        DividendPolicy(2.2, 4)
+        DividendPolicy(0, 0)
     );
 
     auto foodCorp = std::make_shared<Company>(
@@ -172,7 +172,7 @@ void Market::addDefaultCompanies() {
         "Food Manufacturer and Distributor",
         Sector::Consumer,
         34.60, 0.35,
-        DividendPolicy(1.8, 4)
+        DividendPolicy(13, 52)
     );
 
     auto industrialCo = std::make_shared<Company>(
@@ -180,7 +180,7 @@ void Market::addDefaultCompanies() {
         "An industrial company that manufactures equipment and machinery",
         Sector::Manufacturing,
         67.90, 0.55,
-        DividendPolicy(2.8, 4)
+        DividendPolicy(39, 26)
     );
 
     addCompany(techCorp);
@@ -224,13 +224,33 @@ void Market::simulateDay() {
     }
 }
 
-void Market::processCompanyDividends() {
+std::vector<std::pair<std::shared_ptr<Company>, double>> Market::processCompanyDividends() {
+    std::vector<std::pair<std::shared_ptr<Company>, double>> dividendPayments;
+
     for (auto& company : companies) {
+        // Ensure the dividend schedule is initialized
+        company->initializeDividendSchedule(currentDate);
+
+        // Check if a dividend should be paid
         if (company->processDividends(currentDate)) {
+            double dividendAmount = company->calculateDividendAmount();
+
+            // Only add non-zero payments
+            if (dividendAmount > 0.0) {
+                dividendPayments.push_back({company, dividendAmount});
+
+                // Log dividend payment
+                std::stringstream logMsg;
+                logMsg << "Dividend paid: " << company->getName()
+                       << " paid " << dividendAmount
+                       << "$ per share on " << currentDate.toString();
+                FileIO::appendToLog(logMsg.str());
+            }
         }
     }
-}
 
+    return dividendPayments;
+}
 void Market::setMarketTrend(MarketTrend trend) {
     state.currentTrend = trend;
     state.trendDuration = 0;

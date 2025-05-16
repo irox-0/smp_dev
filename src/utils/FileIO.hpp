@@ -35,6 +35,8 @@ public:
     static std::string combineFilePath(const std::string& directory, const std::string& filename);
     static std::string getFileExtension(const std::string& filePath);
     static std::string getFileName(const std::string& filePath);
+    static void appendToLog(const std::string& message);
+    static void clearLog();
 };
 
 }

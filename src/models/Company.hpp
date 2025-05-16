@@ -39,6 +39,12 @@ struct DividendPolicy {
     static DividendPolicy fromJson(const nlohmann::json& json);
 };
 
+struct DividendPaymentInfo {
+        bool paymentMade;
+        Date paymentDate;
+        double amountPerShare;
+    };
+
 class Company : public std::enable_shared_from_this<Company> {
 private:
     std::string name;
@@ -48,6 +54,7 @@ private:
     double volatility;
     DividendPolicy dividendPolicy;
     std::unique_ptr<Stock> stock;
+    Date lastDividendDate;
 
     double marketCap;
     double peRatio;
@@ -101,9 +108,10 @@ public:
     bool processDividends(int currentDay);
 
     double calculateDividendAmount() const;
-
+    void initializeDividendSchedule(const Date& currentDate);
     nlohmann::json toJson() const;
     static std::shared_ptr<Company> fromJson(const nlohmann::json& json);
+    Date getLastDividendDate() const { return lastDividendDate; }
 };
 
 }

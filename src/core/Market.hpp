@@ -70,8 +70,7 @@ public:
     void addDefaultCompanies();
 
     void simulateDay();
-    void processCompanyDividends();
-    void setMarketTrend(MarketTrend trend);
+    std::vector<std::pair<std::shared_ptr<Company>, double>> processCompanyDividends();    void setMarketTrend(MarketTrend trend);
     void triggerEconomicEvent(double impact, bool affectAllSectors = true);
 
     nlohmann::json toJson() const;

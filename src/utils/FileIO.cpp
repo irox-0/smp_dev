@@ -285,5 +285,18 @@ std::string FileIO::getFileName(const std::string& filePath) {
     }
     return filePath.substr(lastSlash + 1);
 }
+void FileIO::appendToLog(const std::string& message) {
+    std::ofstream logFile("log.txt", std::ios::app);
+    if (logFile.is_open()) {
+        logFile << message << std::endl;
+        logFile.close();
+    }
+}
 
+void FileIO::clearLog() {
+    std::ofstream logFile("log.txt", std::ios::trunc);
+    if (logFile.is_open()) {
+        logFile.close();
+    }
+}
 }

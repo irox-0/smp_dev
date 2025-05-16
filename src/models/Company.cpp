@@ -1,5 +1,6 @@
 #include "Company.hpp"
 #include "../utils/Random.hpp"
+#include "utils/FileIO.hpp"
 #include <stdexcept>
 
 namespace StockMarketSimulator {
@@ -139,7 +140,8 @@ Company::Company(const std::string& name, const std::string& ticker,
       marketCap(0.0),
       peRatio(0.0),
       revenue(0.0),
-      profit(0.0)
+      profit(0.0),
+      lastDividendDate()
 {
     stock = std::make_unique<Stock>(weak_from_this(), initialPrice);
 
@@ -313,8 +315,13 @@ void Company::openTradingDay() {
     }
 }
 
+    // In Company.cpp:
 bool Company::processDividends(const Date& currentDate) {
     if (dividendPolicy.shouldPayDividend(currentDate)) {
+        // Record this payment date
+        lastDividendDate = currentDate;
+
+        // Schedule next payment and return true to indicate payment
         dividendPolicy.scheduleNextPayment(currentDate);
         return true;
     }
@@ -342,17 +349,17 @@ nlohmann::json Company::toJson() const {
     j["pe_ratio"] = peRatio;
     j["revenue"] = revenue;
     j["profit"] = profit;
-    
+
     if (stock) {
         j["stock"] = stock->toJson();
     }
-    
+
     return j;
 }
 
 std::shared_ptr<Company> Company::fromJson(const nlohmann::json& json) {
     auto company = std::make_shared<Company>();
-    
+
     company->name = json["name"];
     company->ticker = json["ticker"];
     company->description = json["description"];
@@ -363,14 +370,34 @@ std::shared_ptr<Company> Company::fromJson(const nlohmann::json& json) {
     company->peRatio = json["pe_ratio"];
     company->revenue = json["revenue"];
     company->profit = json["profit"];
-    
+
     if (json.contains("stock")) {
         company->stock.reset(new Stock(Stock::fromJson(json["stock"], company)));
     } else {
         company->stock = std::make_unique<Stock>(company, 0.0);
     }
-    
+
     return company;
+}
+
+void Company::initializeDividendSchedule(const Date& currentDate) {
+    if (dividendPolicy.paymentFrequency > 0 && dividendPolicy.nextPaymentDay == Date()) {
+        // Log before initialization
+        std::stringstream logMsg;
+        logMsg << "Initializing dividend schedule for " << name
+               << " - Annual rate: " << dividendPolicy.annualDividendRate
+               << "$ - Frequency: " << dividendPolicy.paymentFrequency
+               << " times per year";
+        FileIO::appendToLog(logMsg.str());
+
+        dividendPolicy.scheduleNextPayment(currentDate);
+
+        // Log after initialization
+        std::stringstream logMsg2;
+        logMsg2 << "Dividend schedule for " << name << " initialized. Next payment on: "
+                << dividendPolicy.nextPaymentDay.toString();
+        FileIO::appendToLog(logMsg2.str());
+    }
 }
 
 }

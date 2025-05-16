@@ -14,6 +14,8 @@ Game::Game()
 
 void Game::initialize(const std::string& playerName, double initialBalance) {
     try {
+        FileIO::clearLog(); // Clear the log file at the start
+        FileIO::appendToLog("Game initialization started");
         market = std::make_shared<Market>();
         market->addDefaultCompanies();
 
@@ -23,6 +25,11 @@ void Game::initialize(const std::string& playerName, double initialBalance) {
 
         priceService = std::make_shared<PriceService>(market);
         priceService->initialize();
+
+        // Initialize dividend schedules for all companies
+        for (const auto& company : market->getCompanies()) {
+            company->initializeDividendSchedule(startDate);
+        }
 
         for (int i = 0; i < 5; i++) {
             auto news = newsService->generateDailyNews(2);
@@ -36,7 +43,6 @@ void Game::initialize(const std::string& playerName, double initialBalance) {
 
         saveService = std::make_shared<SaveService>(market, player, newsService, priceService);
         saveService->initialize();
-
 
         status = GameStatus::NotStarted;
         simulatedDays = 0;
@@ -77,27 +83,36 @@ bool Game::simulateDay() {
         lastError = "Cannot simulate day: game is not running";
         return false;
     }
-    
+
     try {
         auto dailyNews = newsService->generateDailyNews();
-        
+
         if (priceService) {
             priceService->updatePrices();
         }
-        
+
         market->simulateDay();
-        
+
         newsService->applyNewsEffects(dailyNews);
-        
-        market->processCompanyDividends();
-        
+
+        // Process dividends and notify player
+        auto dividendPayments = market->processCompanyDividends();
+
+        std::stringstream logMsg;
+        logMsg << "Day " << simulatedDays << " - Processing "
+               << dividendPayments.size() << " dividend payments";
+        FileIO::appendToLog(logMsg.str());
+        for (const auto& [company, amount] : dividendPayments) {
+            player->receiveDividends(company, amount);
+        }
+
         player->updateDailyState();
         player->closeDay();
-        
+
         if (saveService) {
             saveService->checkAndCreateAutosave();
         }
-        
+
         simulatedDays++;
         return true;
     } catch (const std::exception& e) {
@@ -105,7 +120,6 @@ bool Game::simulateDay() {
         return false;
     }
 }
-
 bool Game::simulateDays(int days) {
     if (days <= 0) {
         return true;

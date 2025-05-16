@@ -21,11 +21,15 @@ struct PortfolioPosition {
     double currentValue;
     double unrealizedProfitLoss;
     double unrealizedProfitLossPercent;
-
+    Date purchaseDate;
+    Date nextDividendDate;
     PortfolioPosition();
+
+    PortfolioPosition(std::shared_ptr<Company> company, int quantity, double price, const Date &date);
+
     PortfolioPosition(std::shared_ptr<Company> company, int quantity, double price);
 
-    void updatePosition(int addedQuantity, double price);
+    void updatePosition(int addedQuantity, double price, const Date &date);
     void updateCurrentValue();
     void calculateUnrealizedProfitLoss();
 
@@ -84,7 +88,7 @@ public:
     bool hasPosition(const std::string& ticker) const;
     int getPositionQuantity(const std::string& ticker) const;
     const PortfolioPosition* getPosition(const std::string& ticker) const;
-
+    PortfolioPosition* getPosition(std::string& ticker);
     bool buyStock(std::shared_ptr<Company> company, int quantity, double price, double commission, const Date& date);
     bool sellStock(std::shared_ptr<Company> company, int quantity, double price, double commission, const Date& date);
 
@@ -105,6 +109,7 @@ public:
 
     nlohmann::json toJson() const;
     static Portfolio fromJson(const nlohmann::json& json, const std::vector<std::shared_ptr<Company>>& allCompanies);
+    void increaseTotalDividendsReceived(double amount);
 };
 
 }

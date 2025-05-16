@@ -13,7 +13,7 @@ MainScreen::MainScreen()
     : Screen("STOCK PLAYER - MAIN MENU", ScreenType::Main),
       game(nullptr)
 {
-    setSize(48, 32);
+    setSize(48, 33);
 }
 
 void MainScreen::setGame(std::shared_ptr<Game> game) {
@@ -253,6 +253,17 @@ void MainScreen::drawPlayerInfo() const {
 
     Console::setCursorPosition(x + 2, currentY);
     Console::setColor(bodyFg, bodyBg);
+    Console::print("Total Dividends: ");
+    Console::setColor(TextColor::Magenta, bodyBg);
+
+    double totalDividends = playerPtr->getPortfolio()->getTotalDividendsReceived();
+    std::stringstream dividendsStr;
+    dividendsStr << std::fixed << std::setprecision(2) << totalDividends << "$";
+    Console::print(dividendsStr.str());
+    currentY += 1;
+
+    Console::setCursorPosition(x + 2, currentY);
+    Console::setColor(bodyFg, bodyBg);
     Console::print("Total Asset Value: ");
     Console::setColor(TextColor::Yellow, bodyBg);
 
@@ -261,26 +272,26 @@ void MainScreen::drawPlayerInfo() const {
     assetsStr << std::fixed << std::setprecision(2) << totalAssets << "$";
     Console::print(assetsStr.str());
 
-    Console::setCursorPosition(x, y + 9);
+    Console::setCursorPosition(x, y + 10);
     Console::setColor(bodyFg, bodyBg);
-    Console::drawHorizontalLine(x, y + 9, width);
+    Console::drawHorizontalLine(x, y + 10, width);
 }
 
 void MainScreen::drawTopStocks() const {
-    Console::setCursorPosition(x + 2, y + 10);
+    Console::setCursorPosition(x + 2, y + 11);
     Console::setColor(TextColor::White, bodyBg);
     Console::setStyle(TextStyle::Bold);
     Console::print("TOP STOCKS TODAY:");
     Console::setStyle(TextStyle::Regular);
 
     if (topStocks.empty()) {
-        Console::setCursorPosition(x + 2, y + 12);
+        Console::setCursorPosition(x + 2, y + 13);
         Console::setColor(bodyFg, bodyBg);
         Console::print("No stock data available.");
         return;
     }
 
-    int currentY = y + 11;
+    int currentY = y + 12;
     for (size_t i = 0; i < topStocks.size(); i++) {
         const auto& company = topStocks[i];
         double changePercent = company->getStock()->getDayChangePercent();
@@ -301,14 +312,14 @@ void MainScreen::drawTopStocks() const {
         Console::print(changeStr.str());
     }
 
-    int separatorY = y + 11 + topStocks.size() + 1;
+    int separatorY = y + 13 + topStocks.size() + 1;
     Console::setCursorPosition(x, separatorY);
     Console::setColor(bodyFg, bodyBg);
     Console::drawHorizontalLine(x, separatorY, width);
 }
 
 void MainScreen::drawLatestNews() const {
-    int newsY = y + 18;
+    int newsY = y + 19;
 
     Console::setCursorPosition(x + 2, newsY);
     Console::setColor(TextColor::White, bodyBg);
@@ -339,7 +350,7 @@ void MainScreen::drawLatestNews() const {
 }
 
 void MainScreen::drawNavigationMenu() const {
-    int menuY = y + 23;
+    int menuY = y + 24;
 
     Console::setCursorPosition(x + 2, menuY);
     Console::setColor(bodyFg, bodyBg);

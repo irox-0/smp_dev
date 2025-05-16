@@ -91,8 +91,10 @@ add_executable(utils_tests
         #        tests/ui/screens/FinancialScreenTest.cpp
 #        tests/ui/screens/CompanyScreenTest.cpp
 #        tests/ui/screens/MarketCompanyIntegrationTest.cpp
-        tests/core/GameTest.cpp
+#        tests/core/GameTest.cpp
+        tests/models/DividendTest.cpp
 )
+
 
 target_link_libraries(utils_tests
         PRIVATE

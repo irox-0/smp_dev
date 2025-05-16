@@ -1,5 +1,6 @@
 #include "Portfolio.hpp"
 #include <algorithm>
+#include "utils/FileIO.hpp"
 #include <cmath>
 #include <stdexcept>
 
@@ -11,35 +12,51 @@ PortfolioPosition::PortfolioPosition()
       totalCost(0.0),
       currentValue(0.0),
       unrealizedProfitLoss(0.0),
-      unrealizedProfitLossPercent(0.0)
+      unrealizedProfitLossPercent(0.0),
+      purchaseDate()
 {
 }
 
-PortfolioPosition::PortfolioPosition(std::shared_ptr<Company> company, int quantity, double price)
+PortfolioPosition::PortfolioPosition(std::shared_ptr<Company> company, int quantity, double price, const Date& date)
     : company(company),
       quantity(quantity),
       averagePurchasePrice(price),
       totalCost(quantity * price),
       currentValue(quantity * company->getStock()->getCurrentPrice()),
       unrealizedProfitLoss(0.0),
-      unrealizedProfitLossPercent(0.0)
+      unrealizedProfitLossPercent(0.0),
+      purchaseDate(date)
 {
     calculateUnrealizedProfitLoss();
 }
 
-void PortfolioPosition::updatePosition(int addedQuantity, double price) {
+void PortfolioPosition::updatePosition(int addedQuantity, double price, const Date& date) {
     if (quantity + addedQuantity <= 0) {
         throw std::runtime_error("Cannot update position to zero or negative quantity");
     }
 
     double newTotalCost = totalCost + (addedQuantity * price);
+
+    // Calculate weighted average purchase date when buying more shares
+    if (addedQuantity > 0) {
+        Date referenceDate(1, 3, 2023); // Common reference date
+        int currentDayNum = purchaseDate.toDayNumber(referenceDate);
+        int newDayNum = date.toDayNumber(referenceDate);
+
+        // Weighted average based on number of shares
+        int weightedTotalDays = currentDayNum * quantity + newDayNum * addedQuantity;
+        int newTotalQuantity = quantity + addedQuantity;
+
+        int weightedAverageDays = weightedTotalDays / newTotalQuantity;
+        purchaseDate = Date::fromDayNumber(weightedAverageDays, referenceDate);
+    }
+
     quantity += addedQuantity;
     averagePurchasePrice = newTotalCost / quantity;
     totalCost = newTotalCost;
 
     updateCurrentValue();
 }
-
 void PortfolioPosition::updateCurrentValue() {
     if (!company || !company->getStock()) {
         currentValue = 0.0;
@@ -62,6 +79,7 @@ void PortfolioPosition::calculateUnrealizedProfitLoss() {
     }
 }
 
+    // In Portfolio.cpp, update PortfolioPosition::toJson:
 nlohmann::json PortfolioPosition::toJson() const {
     nlohmann::json j;
 
@@ -72,10 +90,12 @@ nlohmann::json PortfolioPosition::toJson() const {
     j["current_value"] = currentValue;
     j["unrealized_profit_loss"] = unrealizedProfitLoss;
     j["unrealized_profit_loss_percent"] = unrealizedProfitLossPercent;
+    j["purchase_date"] = purchaseDate.toJson();
 
     return j;
 }
 
+    // Update PortfolioPosition::fromJson:
 PortfolioPosition PortfolioPosition::fromJson(const nlohmann::json& json, std::shared_ptr<Company> company) {
     PortfolioPosition position;
 
@@ -86,6 +106,10 @@ PortfolioPosition PortfolioPosition::fromJson(const nlohmann::json& json, std::s
     position.currentValue = json["current_value"];
     position.unrealizedProfitLoss = json["unrealized_profit_loss"];
     position.unrealizedProfitLossPercent = json["unrealized_profit_loss_percent"];
+
+    if (json.contains("purchase_date")) {
+        position.purchaseDate = Date::fromJson(json["purchase_date"]);
+    }
 
     return position;
 }
@@ -240,6 +264,7 @@ const PortfolioPosition* Portfolio::getPosition(const std::string& ticker) const
     return nullptr;
 }
 
+    // In Portfolio.cpp:
 bool Portfolio::buyStock(std::shared_ptr<Company> company, int quantity, double price, double commission, const Date& date) {
     if (!company || quantity <= 0 || price <= 0) {
         return false;
@@ -259,9 +284,17 @@ bool Portfolio::buyStock(std::shared_ptr<Company> company, int quantity, double 
 
     std::string ticker = company->getTicker();
     if (hasPosition(ticker)) {
-        positions[ticker].updatePosition(quantity, price);
+        positions[ticker].updatePosition(quantity, price, date);
+        // positions[ticker].purchaseDate = date;  // Update purchase date on additional buys
     } else {
-        positions[ticker] = PortfolioPosition(company, quantity, price);
+        positions[ticker] = PortfolioPosition(company, quantity, price, date);
+        // Set the first dividend date based on purchase date
+        int days = company->getDividendPolicy().daysBetweenPayments;
+        if (days > 0) {
+            Date nextDividend = date;
+            nextDividend.advanceDays(days);
+            positions[ticker].nextDividendDate = nextDividend;
+        }
     }
 
     updatePortfolioValue();
@@ -271,7 +304,6 @@ bool Portfolio::buyStock(std::shared_ptr<Company> company, int quantity, double 
 
     return true;
 }
-
 bool Portfolio::sellStock(std::shared_ptr<Company> company, int quantity, double price, double commission, const Date& date) {
     if (!company || quantity <= 0 || price <= 0) {
         return false;
@@ -352,8 +384,11 @@ void Portfolio::recordHistoryEntry(const Date& date) {
     }
 }
 
-void Portfolio::receiveDividends(std::shared_ptr<Company> company, double amount) {
-    if (!company || amount <= 0) {
+    // In Portfolio.cpp:
+    // In Portfolio.cpp:
+// In Portfolio.cpp:
+void Portfolio::receiveDividends(std::shared_ptr<Company> company, double amountPerShare) {
+    if (!company || amountPerShare <= 0) {
         return;
     }
 
@@ -362,14 +397,52 @@ void Portfolio::receiveDividends(std::shared_ptr<Company> company, double amount
         return;
     }
 
-    int shares = positions[ticker].quantity;
-    double dividendAmount = shares * amount;
+    PortfolioPosition& position = positions[ticker];
+    Date currentDate = company->getStock()->getLastUpdateDate();
 
+    // Key calculation: Get the previous dividend date
+    Date lastDividendDate = company->getLastDividendDate();
+
+    // Get dividend period (time between payments)
+    int dividendPeriod = company->getDividendPolicy().daysBetweenPayments;
+
+    // Calculate when this dividend period started (the day after the previous payment)
+    Date periodStartDate = lastDividendDate;
+    periodStartDate.advanceDays(-dividendPeriod);
+
+    // If shares were purchased during this dividend period, prorate the payment
+    int daysInPeriod = dividendPeriod;
+    int daysOwned = daysInPeriod;
+
+    if (position.purchaseDate > periodStartDate) {
+        // Calculate days owned during this period
+        daysOwned = position.purchaseDate.daysBetween(lastDividendDate);
+
+        // Can't be negative
+        if (daysOwned < 0) daysOwned = 0;
+    }
+
+    // Prorate the dividend based on days owned in the period
+    double prorationFactor = static_cast<double>(daysOwned) / daysInPeriod;
+    double proratedDividend = amountPerShare * prorationFactor;
+
+    // Calculate total dividend amount
+    int shares = position.quantity;
+    double dividendAmount = shares * proratedDividend;
+
+    // Log the calculation
+    std::stringstream logMsg;
+    logMsg << "Dividend calculation for " << company->getName() << ": "
+           << shares << " shares × " << proratedDividend << "$ per share = " << dividendAmount
+           << "$ (Owned " << daysOwned << " of " << daysInPeriod << " days, "
+           << (prorationFactor * 100) << "%)";
+    FileIO::appendToLog(logMsg.str());
+
+    // Add dividend to cash and total
     cashBalance += dividendAmount;
     totalDividendsReceived += dividendAmount;
     updatePortfolioValue();
 }
-
 void Portfolio::depositCash(double amount) {
     if (amount <= 0) {
         return;
@@ -521,5 +594,8 @@ Portfolio Portfolio::fromJson(const nlohmann::json& json, const std::vector<std:
 
     return portfolio;
 }
-
+void Portfolio::increaseTotalDividendsReceived(double amount) {
+    totalDividendsReceived += amount;
+    updatePortfolioValue();
+}
 }

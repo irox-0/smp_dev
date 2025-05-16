@@ -1,5 +1,6 @@
 #include "Player.hpp"
 #include "Market.hpp"
+#include "utils/FileIO.hpp"
 #include <iostream>
 #include <algorithm>
 
@@ -268,9 +269,23 @@ bool Player::repayMarginLoan(double amount) {
     return true;
 }
 
+    // In Player.cpp:
 void Player::receiveDividends(std::shared_ptr<Company> company, double amountPerShare) {
     if (!company || amountPerShare <= 0.0) {
         return;
+    }
+
+    std::string ticker = company->getTicker();
+    if (portfolio->hasPosition(ticker)) {
+        int shares = portfolio->getPositionQuantity(ticker);
+        double totalAmount = shares * amountPerShare;
+
+        // Log dividend receipt
+        std::stringstream logMsg;
+        logMsg << "Player received dividend: " << totalAmount
+               << "$ for " << shares << " shares of "
+               << company->getName();
+        FileIO::appendToLog(logMsg.str());
     }
 
     portfolio->receiveDividends(company, amountPerShare);
@@ -287,6 +302,10 @@ void Player::updateDailyState() {
         auto marketPtr = market.lock();
         if (marketPtr) {
             std::vector<std::pair<std::string, double>> positions;
+
+
+
+
             for (const auto& [ticker, position] : portfolio->getPositions()) {
                 positions.push_back({ticker, position.unrealizedProfitLossPercent});
             }
